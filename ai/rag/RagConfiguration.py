@@ -2,6 +2,7 @@
 完成整个rag流程所需要的一些配置
 """
 from dataclasses import dataclass
+from typing import Optional
 
 from langchain_community.document_loaders import UnstructuredMarkdownLoader
 from langchain_core.vectorstores import VectorStore
@@ -22,6 +23,7 @@ class RagConfigurationBuilder:
         self.splitter = splitter
         self.content_loader = content_loader
         self.db_instance = db_instance
+        self.__config : Optional[RagConfiguration] = None
 
     def set_embedding_model(self,em):
         self.embedding_model = em
@@ -40,12 +42,14 @@ class RagConfigurationBuilder:
         return self
 
     def build(self):
-        return RagConfiguration(
+        if self.__config is None:
+            self.__config = RagConfiguration(
             self.embedding_model,
             self.splitter,
             self.content_loader,
             self.db_instance
         )
+        return self.__config
 @dataclass(frozen=True)
 class RagConfiguration:
     embedding_model:OpenAIEmbeddings

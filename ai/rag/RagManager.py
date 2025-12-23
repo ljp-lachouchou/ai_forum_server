@@ -20,12 +20,12 @@ class RagManager(Generic[C,P]):
         config_builder = self.configurationBuilder_cls(**kwargs)
         self.actual_processor = self.processor_cls(config_builder)
 
-    def start_process(self, source: Any):
+    async def start_process(self, source: Any):
         if not self.actual_processor:
             raise RuntimeError("请先调用 build()")
 
         # 代理模式：驱动流水线
-        docs = self.actual_processor.upload_documents(source)
-        chunks = self.actual_processor.split_documents(docs)
+        doc = await self.actual_processor.upload_document(source)
+        chunks = self.actual_processor.split_document(doc)
         vecs = self.actual_processor.as_vector(chunks)
         self.actual_processor.save(chunks, vecs)
