@@ -2,7 +2,7 @@ import os
 from enum import Enum
 
 from langchain_deepseek import ChatDeepSeek
-from langchain_openai.chat_models.base import BaseChatOpenAI
+
 
 
 class ClientType(Enum):
@@ -16,6 +16,8 @@ class ClientType(Enum):
 
 class ClientBuilder:
     def __init__(self,clientType:ClientType,api_key_tag = 'DEEPSEEK_API_KEY',base_url = "https://api.deepseek.com",model = "deepseek-chat"):
+        from dotenv import load_dotenv
+        load_dotenv()
         self.api_key = os.environ.get(api_key_tag)
         self.base_url = base_url
         self.model = model
