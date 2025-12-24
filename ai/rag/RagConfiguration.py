@@ -2,13 +2,14 @@
 完成整个rag流程所需要的一些配置
 """
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Union
 
 from langchain_community.document_loaders import UnstructuredMarkdownLoader
 from langchain_core.vectorstores import VectorStore
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import TextSplitter, MarkdownHeaderTextSplitter
+from milvus_model.hybrid import BGEM3EmbeddingFunction
 
 
 class RagConfigurationBuilder:
@@ -18,15 +19,15 @@ class RagConfigurationBuilder:
     content_loader: 内容加载器
     db_instance: 数据库连接实例
     """
-    def __init__(self,embedding_model,splitter,content_loader,db_instance):
-        self.embedding_model = embedding_model
+    def __init__(self,bge_model,splitter,content_loader,db_instance):
+        self.bge_model = bge_model
         self.splitter = splitter
         self.content_loader = content_loader
         self.db_instance = db_instance
         self.__config : Optional[RagConfiguration] = None
 
     def set_embedding_model(self,em):
-        self.embedding_model = em
+        self.bge_model = em
         return self
 
     def set_splitter(self,sp):
@@ -44,7 +45,7 @@ class RagConfigurationBuilder:
     def build(self):
         if self.__config is None:
             self.__config = RagConfiguration(
-            self.embedding_model,
+            self.bge_model,
             self.splitter,
             self.content_loader,
             self.db_instance
@@ -52,7 +53,7 @@ class RagConfigurationBuilder:
         return self.__config
 @dataclass(frozen=True)
 class RagConfiguration:
-    embedding_model:OpenAIEmbeddings
-    splitter:MarkdownHeaderTextSplitter | TextSplitter
-    content_loader:UnstructuredMarkdownLoader
+    bge_model:BGEM3EmbeddingFunction
+    splitter:Union[MarkdownHeaderTextSplitter , TextSplitter]
+    content_loader:Optional[UnstructuredMarkdownLoader]
     db_instance:VectorStore
