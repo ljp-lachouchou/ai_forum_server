@@ -22,7 +22,7 @@ class RagManager(Generic[C,P]):
         config_builder = self.configurationBuilder_cls(**kwargs)
         self.actual_processor = self.processor_cls(config_builder)
 
-    async def start_process(self, md_word: MDWord):
+    async def start_process(self, collection_name:str,md_word: MDWord,mapper_func):
         if not self.actual_processor:
             raise RuntimeError("请先调用 build()")
 
@@ -30,4 +30,4 @@ class RagManager(Generic[C,P]):
         doc = await self.actual_processor.upload_document(md_word.word_url)
         chunks = self.actual_processor.split_document(doc)
         vecs = await self.actual_processor.as_vector(chunks)
-        await self.actual_processor.save(chunks, vecs,md_word)
+        await self.actual_processor.save_generic(collection_name,chunks, vecs,mapper_func,md_word)

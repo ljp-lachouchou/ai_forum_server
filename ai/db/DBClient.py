@@ -3,7 +3,79 @@ from typing import Optional
 
 from dotenv import load_dotenv
 from pymilvus import MilvusClient, DataType
+from pymilvus import MilvusClient, DataType
+class DBClient:
+    __client : Optional[MilvusClient] = None
+    @classmethod
+    def _create_uri(cls):
+        load_dotenv()
+        host = os.environ.get('MILVUS_DB_HOST')
+        port = os.environ.get('MILVUS_DB_PORT')
+        return host,port
+    @classmethod
+    def get_client(cls):
+        if cls.__client is None:
+            host,port = cls._create_uri()
+            try:
+                cl = MilvusClient(uri=f"{host}:{port}",timeout=10)
+                cls.__client = cl
+            except Exception as e:
+                print(f"创建Milvus客户端失败,{e}")
+        return cls.__client
+def create_title_collection():
+    client = DBClient.get_client()
+    collection_name = "article_title_collection"
 
+    # 1. 如果已存在则删除 (注意：会清空数据)
+    if client.has_collection(collection_name):
+        client.drop_collection(collection_name)
+
+    # 2. 定义 Schema
+    schema = client.create_schema(
+        auto_id=True,
+        enable_dynamic_field=True,
+        description="文章标题混合检索集合"
+    )
+
+    # 主键
+    schema.add_field(field_name="id", datatype=DataType.INT64, is_primary=True)
+    # 关联 ID
+    schema.add_field(field_name="word_id", datatype=DataType.VARCHAR, max_length=100)
+    # 标题原始文本
+    schema.add_field(field_name="title", datatype=DataType.VARCHAR, max_length=500)
+    # 稠密向量 (BGE-M3 维度 1024)
+    schema.add_field(field_name="title_dense", datatype=DataType.FLOAT_VECTOR, dim=1024)
+    # 稀疏向量 (用于关键词精确匹配)
+    schema.add_field(field_name="title_sparse", datatype=DataType.SPARSE_FLOAT_VECTOR)
+
+    # 3. 设置索引参数
+    index_params = client.prepare_index_params()
+
+    # 稠密向量索引 (使用内积 IP 适合 BGE 模型)
+    index_params.add_index(
+        field_name="title_dense",
+        index_type="IVF_FLAT",
+        metric_type="IP",
+        params={"nlist": 128}
+    )
+
+    # 稀疏向量索引
+    index_params.add_index(
+        field_name="title_sparse",
+        index_type="SPARSE_INVERTED_INDEX",
+        metric_type="IP"
+    )
+
+    # 4. 正式创建
+    client.create_collection(
+        collection_name=collection_name,
+        schema=schema,
+        index_params=index_params
+    )
+    print(f"集合 {collection_name} 创建成功！维度: 1024")
+
+if __name__ == "__main__":
+    create_title_collection()
 def init_collection():
     # 1. 初始化客户端
     load_dotenv()
@@ -64,21 +136,3 @@ def init_collection():
     )
 
     print(f"Collection {collection_name} 已成功创建！")
-class DBClient:
-    __client : Optional[MilvusClient] = None
-    @classmethod
-    def _create_uri(cls):
-        load_dotenv()
-        host = os.environ.get('MILVUS_DB_HOST')
-        port = os.environ.get('MILVUS_DB_PORT')
-        return host,port
-    @classmethod
-    def get_client(cls):
-        if cls.__client is None:
-            host,port = cls._create_uri()
-            try:
-                cl = MilvusClient(uri=f"{host}:{port}",timeout=10)
-                cls.__client = cl
-            except Exception as e:
-                print(f"创建Milvus客户端失败,{e}")
-        return cls.__client

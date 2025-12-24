@@ -30,9 +30,19 @@ class RagProcessor(ABC):
     async def as_vector(self, chunks: List[Document]) -> dict:
         """将块内容转为向量列表"""
         pass
+    @abstractmethod
+    async def insert_records(self, collection_name: str, records: List[dict]) -> bool:
+        """
+        保存方法
+        :param collection_name:
+        :param records:
+        :return:
+        """
+        pass
 
     @abstractmethod
-    async def save(self, chunks: List[Document], vector_dict: dict, word_model: MDWord,collection_name = "md_word_mixed_collection",) -> bool:
+    async def save_generic(self, collection_name: str, chunks: List[Document],
+                           vector_dict: dict, mapper_func,word_model:MDWord) -> bool:
         """保存到向量数据库 (如 Milvus)"""
         pass
 class BaseRagProcessor(RagProcessor,ABC):
@@ -66,51 +76,49 @@ class MDMilvusRagProcessor(BaseRagProcessor):
             "sparse": sparse_list
         }
 
-    async def save(self, chunks: List[Document], vector_dict: dict, word_model: MDWord,
-             collection_name="md_word_mixed_collection", ) -> bool:
+    async def insert_records(self, collection_name: str, records: List[dict]) -> bool:
+        """
+        最底层的通用插入方法，只负责异步 IO
+        """
         client = DBClient.get_client()
-
         try:
-            insert_data = []
-            dense_vectors = vector_dict.get("dense")
-            sparse_vectors = vector_dict.get("sparse")
-
-            for i, chunk in enumerate(chunks):
-                # --- 关键修复：正确从 Scipy 矩阵提取单行并转为字典 ---
-                try:
-                    row = sparse_vectors.getrow(i)
-                    formatted_sparse = {
-                        int(index): float(value)
-                        for index, value in zip(row.indices, row.data)
-                    }
-                except AttributeError:
-                    raw_sparse = sparse_vectors[i]
-                    formatted_sparse = raw_sparse if isinstance(raw_sparse, dict) else raw_sparse
-
-                record = {
-                    "word_id": str(word_model.id),
-                    "raw_text": chunk.page_content,
-                    "dense_vector": dense_vectors[i],
-                    "sparse_vector": formatted_sparse,
-                    "entity_info": {
-                        "word_name": word_model.word_name,
-                        "author_id": word_model.author_id,
-                        "category": word_model.category,
-                        "create_time": word_model.create_time,
-                        "tags": [tag.id for tag in word_model.word_tags],
-                        "is_delete": word_model.is_delete
-                    }
-                }
-                insert_data.append(record)
-
             await asyncio.to_thread(
                 client.insert,
                 collection_name=collection_name,
-                data=insert_data
+                data=records
             )
             return True
         except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print(f"Milvus Save Error: {e}")
+            print(f"Milvus Insert Error: {e}")
             return False
+
+    def _format_sparse_row(self, sparse_vectors, i):
+        """
+        提取并格式化稀疏向量的通用逻辑
+        """
+        try:
+            row = sparse_vectors.getrow(i)
+            return {int(k): float(v) for k, v in zip(row.indices, row.data)}
+        except AttributeError:
+            raw = sparse_vectors[i]
+            return raw if isinstance(raw, dict) else raw
+
+    async def save_generic(self, collection_name: str, chunks: List[Document],
+                           vector_dict: dict, mapper_func,word_model:MDWord) -> bool:
+        """
+        通用的保存逻辑，接受一个 mapper 函数来构造每条记录
+        """
+        dense_vectors = vector_dict.get("dense")
+        sparse_vectors = vector_dict.get("sparse")
+
+        insert_data = []
+        for i, chunk in enumerate(chunks):
+            # 获取基础向量数据
+            dense_vec = dense_vectors[i]
+            sparse_vec = self._format_sparse_row(sparse_vectors, i)
+
+            # 调用传入的 mapper 构造最终的 record 字典
+            record = mapper_func(chunk, dense_vec, sparse_vec,word_model)
+            insert_data.append(record)
+
+        return await self.insert_records(collection_name, insert_data)
