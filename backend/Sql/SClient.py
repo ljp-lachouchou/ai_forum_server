@@ -1,0 +1,125 @@
+import os
+from typing import Optional, Any, Dict
+from dotenv import load_dotenv
+from supabase import create_client, Client
+from io import StringIO
+
+from common.async_helper.AsyncWrapper import AsyncWrapper
+
+
+class SupabaseClient:
+    __client: Optional[Client] = None
+
+    def __init__(self, url: str = None, key: str = None):
+        self.__url = url
+        self.__key = key
+        self.__request_semaphore = AsyncWrapper._upload_sem
+
+    def init_client(self):
+        """
+        懒初始化 Supabase client
+        """
+        if not self.__client:
+            load_dotenv()
+            url = self.__url or os.environ.get("SUPABASE_URL")
+            key = self.__key or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+
+            if not url or not key:
+                raise RuntimeError("Supabase URL or KEY not provided")
+
+            self.__client = create_client(url, key)
+
+        return self
+
+
+    def _insert(self, table: str, data: Dict[str, Any]):
+        if not self.__client:
+            raise RuntimeError("Supabase client not initialized")
+
+        res = self.__client.table(table).insert(data).execute()
+        if res.error:
+            raise RuntimeError(res.error.message)
+
+        return res.data
+
+    def _update(self, table: str, data: Dict[str, Any], filters: Dict[str, Any]):
+        if not self.__client:
+            raise RuntimeError("Supabase client not initialized")
+
+        query = self.__client.table(table).update(data)
+        for k, v in filters.items():
+            query = query.eq(k, v)
+
+        res = query.execute()
+        if res.error:
+            raise RuntimeError(res.error.message)
+
+        return res.data
+
+    def _select(self, table: str, filters: Dict[str, Any] = None, single: bool = False):
+        if not self.__client:
+            raise RuntimeError("Supabase client not initialized")
+
+        query = self.__client.table(table).select("*")
+        if filters:
+            for k, v in filters.items():
+                query = query.eq(k, v)
+
+        if single:
+            query = query.single()
+
+        res = query.execute()
+        if res.error:
+            raise RuntimeError(res.error.message)
+
+        return res.data
+
+    def _rpc(self, fn_name: str, params: Dict[str, Any]):
+        if not self.__client:
+            raise RuntimeError("Supabase client not initialized")
+
+        res = self.__client.rpc(fn_name, params).execute()
+        if res.error:
+            raise RuntimeError(res.error.message)
+
+        return res.data
+
+    def _delete(self, table: str, filters: Dict[str, Any]):
+        if not self.__client:
+            raise RuntimeError("Supabase client not initialized")
+
+        query = self.__client.table(table).delete()
+        for k, v in filters.items():
+            query = query.eq(k, v)
+
+        res = query.execute()
+        if res.error:
+            raise RuntimeError(res.error.message)
+
+        return res.data
+
+
+    @AsyncWrapper.to_async(sem=AsyncWrapper._upload_sem)
+    def insert_async(self, table: str, data: Dict[str, Any]):
+        return self._insert(table, data)
+
+    @AsyncWrapper.to_async(sem=AsyncWrapper._upload_sem)
+    def update_async(self, table: str, data: Dict[str, Any], filters: Dict[str, Any]):
+        return self._update(table, data, filters)
+
+    @AsyncWrapper.to_async(sem=AsyncWrapper._upload_sem)
+    def select_async(
+        self,
+        table: str,
+        filters: Dict[str, Any] = None,
+        single: bool = False
+    ):
+        return self._select(table, filters, single)
+
+    @AsyncWrapper.to_async(sem=AsyncWrapper._upload_sem)
+    def rpc_async(self, fn_name: str, params: Dict[str, Any]):
+        return self._rpc(fn_name, params)
+
+    @AsyncWrapper.to_async(sem=AsyncWrapper._upload_sem)
+    def delete_async(self, table: str, filters: Dict[str, Any]):
+        return self._delete(table, filters)

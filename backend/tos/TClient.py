@@ -75,6 +75,7 @@ class TClient:
         return self._upload_char_flow(content,file_name)
 
 
+
 if __name__ == "__main__":
     rl = asyncio.run(TClient("ai-forum-word").init_client()
                      .get_pre_signed_url('https://ai-forum-word.tos-cn-beijing.volces.com/r20251224-0ec7051e-test.md'))
