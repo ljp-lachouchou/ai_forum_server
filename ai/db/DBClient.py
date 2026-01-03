@@ -3,7 +3,6 @@ from typing import Optional
 
 from dotenv import load_dotenv
 from pymilvus import MilvusClient, DataType
-from pymilvus import MilvusClient, DataType
 class DBClient:
     __client : Optional[MilvusClient] = None
     @classmethod

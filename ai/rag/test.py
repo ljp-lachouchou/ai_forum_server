@@ -33,9 +33,9 @@ async def test():
 
     # 2. 创建文档对象
     example_word = MDWord(
-        id="doc_2025_001",
+        id="e8f1ee0e-fd47-4b67-91d7-6a28bc37cd89",
         word_name="如何使用 Milvus 实现混合检索",
-        author_id="user_ljp_99",
+        author_id="37ed0792-5e07-449a-bf68-2e6252bcad7d",
         word_url="https://hf-mirror.com/api/resolve-cache/models/BAAI/bge-m3/5617a9f61b028005a4858fdac845db406aefb181/README.md?download=true&etag=%22e5a320176edd6ee1cfb256e68ee5ac0004de9447%22",
         word_tags=tags,
         likes=128,
@@ -78,4 +78,4 @@ async def art_test():
 
 
     await manager.start_process(article_collection_name,example_word,title_mapper)
-asyncio.run(art_test())
+asyncio.run(test())

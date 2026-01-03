@@ -46,6 +46,26 @@ class WordService:
 
         return word[0]
 
+    async def get_words_by_ids(
+            self,
+            word_ids: List[UUID],
+    ) -> List[dict]:
+        """
+        根据 word_id 批量获取 words 记录
+        """
+        if not word_ids:
+            return []
+
+        res = (
+            self.sb._client
+            .table("words")
+            .select("word_id, word_url, status")
+            .in_("word_id", [str(wid) for wid in word_ids])
+            .eq("status", "published")  # ✅ 状态过滤
+            .execute()
+        )
+
+        return res.data or []
     async def update_word(
         self,
         word_id: UUID,
@@ -208,3 +228,18 @@ class WordService:
             "actor_id": str(actor_id),
             "payload": payload,
         })
+
+    def filter_published_ids(
+            self,
+            ids: List[UUID],
+    ) -> List[UUID]:
+        """
+        只返回 status = published 的文档 ID
+        """
+        rows = self.sb._client.table("words") \
+            .select("word_id") \
+            .in_("word_id", [str(i) for i in ids]) \
+            .eq("status", "published") \
+            .execute()
+
+        return [UUID(r["word_id"]) for r in rows.data]

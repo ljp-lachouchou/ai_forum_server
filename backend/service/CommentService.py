@@ -73,7 +73,6 @@ class CommentService:
 
         if comment["author_id"] != str(author_id):
             raise PermissionError("Cannot delete others' comments")
-
         await self.sb.delete_async(
             "comments",
             {"id": str(comment_id)},

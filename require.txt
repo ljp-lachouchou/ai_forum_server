@@ -1,0 +1,26 @@
+﻿# 基础
+python-dotenv>=1.0.1
+
+# HTTP / Async（关键，统一 httpx）
+httpx>=0.27.0,<0.29.0
+websockets>=11.0,<13.0
+
+# OpenAI 新 SDK
+openai>=1.30.0
+
+# LangChain 核心（已拆包后的新结构）
+langchain>=0.2.12
+langchain-community>=0.2.12
+langchain-text-splitters>=0.2.1
+
+# 向量数据库
+chromadb>=0.4.24
+
+# Milvus
+pymilvus>=2.4.6
+milvus-model>=0.2.6
+
+# Supabase（⚠️ 关键点：不要用 1.x）
+supabase>=2.3.6
+
+langchain_deepseek

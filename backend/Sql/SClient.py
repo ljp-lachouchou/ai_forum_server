@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Optional, Any, Dict
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -8,7 +9,7 @@ from common.async_helper.AsyncWrapper import AsyncWrapper
 
 
 class SupabaseClient:
-    __client: Optional[Client] = None
+    _client: Optional[Client] = None
 
     def __init__(self, url: str = None, key: str = None):
         self.__url = url
@@ -16,37 +17,48 @@ class SupabaseClient:
         self.__request_semaphore = AsyncWrapper._upload_sem
 
     def init_client(self):
-        """
-        懒初始化 Supabase client
-        """
-        if not self.__client:
-            load_dotenv()
+        if not self._client:
+            env_path = Path(__file__).resolve().parents[1] / ".env"
+
+            print("=== SupabaseClient DEBUG ===")
+            print("SClient.py path:", Path(__file__).resolve())
+            print("Calculated env path:", env_path)
+            print("Env exists:", env_path.exists())
+            print("CWD:", os.getcwd())
+
+            load_dotenv(dotenv_path=env_path, override=True)
+
+            print("SUPABASE_URL from env:", os.environ.get("SUPABASE_URL"))
+            print("SUPABASE_KEY from env:", os.environ.get("SUPABASE_KEY"))
+            print("============================")
+
             url = self.__url or os.environ.get("SUPABASE_URL")
-            key = self.__key or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+            key = self.__key or os.environ.get("SUPABASE_KEY")
 
             if not url or not key:
                 raise RuntimeError("Supabase URL or KEY not provided")
 
-            self.__client = create_client(url, key)
+            from supabase import create_client
+            self._client = create_client(url, key)
 
         return self
 
 
     def _insert(self, table: str, data: Dict[str, Any]):
-        if not self.__client:
+        if not self._client:
             raise RuntimeError("Supabase client not initialized")
 
-        res = self.__client.table(table).insert(data).execute()
+        res = self._client.table(table).insert(data).execute()
         if res.error:
             raise RuntimeError(res.error.message)
 
         return res.data
 
     def _update(self, table: str, data: Dict[str, Any], filters: Dict[str, Any]):
-        if not self.__client:
+        if not self._client:
             raise RuntimeError("Supabase client not initialized")
 
-        query = self.__client.table(table).update(data)
+        query = self._client.table(table).update(data)
         for k, v in filters.items():
             query = query.eq(k, v)
 
@@ -57,10 +69,10 @@ class SupabaseClient:
         return res.data
 
     def _select(self, table: str, filters: Dict[str, Any] = None, single: bool = False):
-        if not self.__client:
+        if not self._client:
             raise RuntimeError("Supabase client not initialized")
 
-        query = self.__client.table(table).select("*")
+        query = self._client.table(table).select("*")
         if filters:
             for k, v in filters.items():
                 query = query.eq(k, v)
@@ -75,20 +87,20 @@ class SupabaseClient:
         return res.data
 
     def _rpc(self, fn_name: str, params: Dict[str, Any]):
-        if not self.__client:
+        if not self._client:
             raise RuntimeError("Supabase client not initialized")
 
-        res = self.__client.rpc(fn_name, params).execute()
+        res = self._client.rpc(fn_name, params).execute()
         if res.error:
             raise RuntimeError(res.error.message)
 
         return res.data
 
     def _delete(self, table: str, filters: Dict[str, Any]):
-        if not self.__client:
+        if not self._client:
             raise RuntimeError("Supabase client not initialized")
 
-        query = self.__client.table(table).delete()
+        query = self._client.table(table).delete()
         for k, v in filters.items():
             query = query.eq(k, v)
 
