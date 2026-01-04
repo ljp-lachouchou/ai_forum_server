@@ -50,7 +50,7 @@ async def test():
 async def art_test():
 
     manager = RagManager(RagConfigurationBuilder,MDMilvusRagProcessor)
-    manager.build(bge_model = BGEM3EmbeddingFunction(model_name = "C:\\Users\\ljp\\PycharmProjects\\Forum\\model\\bge-m3",use_fp16=False, device="cpu"),
+    manager.build(bge_model = BGEM3EmbeddingFunction(model_name = "../model/bge-m3",use_fp16=False, device="cpu"),
             splitter = MarkdownHeaderTextSplitter(headers_to_split_on = [
                                     ("#", "Header 1"),
                                     ("##", "Header 2"),

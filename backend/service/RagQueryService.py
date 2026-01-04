@@ -1,6 +1,5 @@
-from dataclasses import dataclass
 from typing import List
-from uuid import UUID
+
 
 from backend.service.HybridSearchService import HybridSearchService
 from backend.service.LLMService import LLMService
@@ -14,7 +13,7 @@ from uuid import UUID
 class RagResult:
     answer: str
     word_ids: List[UUID]
-    context_preview: str | None = None
+    # context_preview: str | None = None
 
 class RagQueryService:
     """

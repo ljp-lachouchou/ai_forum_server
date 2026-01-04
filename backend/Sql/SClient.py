@@ -7,6 +7,7 @@ from io import StringIO
 
 from common.async_helper.AsyncWrapper import AsyncWrapper
 
+default_filter = {"status": "published"}
 
 class SupabaseClient:
     _client: Optional[Client] = None
@@ -42,7 +43,6 @@ class SupabaseClient:
             self._client = create_client(url, key)
 
         return self
-
 
     def _insert(self, table: str, data: Dict[str, Any]):
         if not self._client:
@@ -86,6 +86,31 @@ class SupabaseClient:
 
         return res.data
 
+    def _mutil_select(self, table: str, tar_in_column: str, in_s: list, filters: Dict[str, Any] = None):
+        """
+
+        :param table:
+        :param tar_in_column: in的目标列
+        :param in_s: in的集合
+        :param filters:
+        :return:
+        """
+        if not self._client:
+            return
+        query = self._client.table(table) \
+            .select("*") \
+            .in_(tar_in_column, [str(i) for i in in_s])
+        if filters:
+            for k, v in filters.items():
+                query = query.eq(k, v)
+        res = query.execute()
+        if hasattr(res, 'code') and res.code != 200:
+            raise RuntimeError(getattr(res, 'msg', '数据库查询失败'))
+
+            # 如果 res 是 Supabase 的 postgrest.base_request.APIResponse
+            # 通常如果没有抛出异常，可以直接返回 data
+        return getattr(res, 'data', [])
+
     def _rpc(self, fn_name: str, params: Dict[str, Any]):
         if not self._client:
             raise RuntimeError("Supabase client not initialized")
@@ -110,7 +135,6 @@ class SupabaseClient:
 
         return res.data
 
-
     @AsyncWrapper.to_async(sem=AsyncWrapper._upload_sem)
     def insert_async(self, table: str, data: Dict[str, Any]):
         return self._insert(table, data)
@@ -121,10 +145,10 @@ class SupabaseClient:
 
     @AsyncWrapper.to_async(sem=AsyncWrapper._upload_sem)
     def select_async(
-        self,
-        table: str,
-        filters: Dict[str, Any] = None,
-        single: bool = False
+            self,
+            table: str,
+            filters: Dict[str, Any] = None,
+            single: bool = False
     ):
         return self._select(table, filters, single)
 
@@ -135,3 +159,9 @@ class SupabaseClient:
     @AsyncWrapper.to_async(sem=AsyncWrapper._upload_sem)
     def delete_async(self, table: str, filters: Dict[str, Any]):
         return self._delete(table, filters)
+
+    @AsyncWrapper.to_async(sem=AsyncWrapper._upload_sem)
+    def mutil_select_async(self, table: str,tar_in_column:str,in_s:list, filters: Dict[str, Any]):
+        return self._mutil_select(table,tar_in_column,in_s, filters)
+
+

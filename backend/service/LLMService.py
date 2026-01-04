@@ -8,7 +8,6 @@ class LLMService:
         raise NotImplementedError
 
 
-from openai import AsyncOpenAI
 
 
 class DeepSeekLLMService(LLMService):

@@ -39,7 +39,6 @@ class RagManager(Generic[C, P]):
 
 from abc import ABC, abstractmethod
 from typing import List, Dict
-from uuid import UUID
 
 
 class RagRetriever(ABC):

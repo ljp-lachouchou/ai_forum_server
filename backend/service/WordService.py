@@ -21,11 +21,11 @@ class WordService:
     # =========================
 
     async def create_word(
-        self,
-        author_id: UUID,
-        word_url: str,
-        category: str,
-        tags: List[str],
+            self,
+            author_id: UUID,
+            word_url: str,
+            category: str,
+            tags: List[str],
     ) -> Dict:
         word = await self.sb.insert_async("words", {
             "author_id": str(author_id),
@@ -66,11 +66,12 @@ class WordService:
         )
 
         return res.data or []
+
     async def update_word(
-        self,
-        word_id: UUID,
-        author_id: UUID,
-        payload: Dict,
+            self,
+            word_id: UUID,
+            author_id: UUID,
+            payload: Dict,
     ) -> None:
         word = await self._get_word_or_raise(word_id)
 
@@ -99,9 +100,9 @@ class WordService:
         return await self._get_word_or_raise(word_id)
 
     async def list_words(
-        self,
-        status: Optional[WordStatus] = None,
-        category: Optional[str] = None,
+            self,
+            status: Optional[WordStatus] = None,
+            category: Optional[str] = None,
     ):
         filters = {}
         if status:
@@ -110,6 +111,16 @@ class WordService:
             filters["category"] = category
 
         return await self.sb.select_async("words", filters=filters)
+
+    async def list_words_by_ids(self, tar_in_column: str,
+                                ids: list, status: Optional[WordStatus] = WordStatus.PUBLISHED):
+        filters = {}
+        if status:
+            filters["status"] = status.value
+        return await self.sb.mutil_select_async("words",
+                                                filters=filters,
+                                                in_s=ids,
+                                                tar_in_column=tar_in_column)
 
     # =========================
     # 状态流转（核心业务）
@@ -134,10 +145,10 @@ class WordService:
         )
 
     async def reject(
-        self,
-        word_id: UUID,
-        admin_id: UUID,
-        reason: str,
+            self,
+            word_id: UUID,
+            admin_id: UUID,
+            reason: str,
     ) -> None:
         await self._update_status(
             word_id,
@@ -188,13 +199,13 @@ class WordService:
         )
 
     async def _update_status(
-        self,
-        word_id: UUID,
-        new_status: WordStatus,
-        event_type: WordEventType,
-        actor_type: str,
-        actor_id: UUID,
-        payload: Optional[Dict] = None,
+            self,
+            word_id: UUID,
+            new_status: WordStatus,
+            event_type: WordEventType,
+            actor_type: str,
+            actor_id: UUID,
+            payload: Optional[Dict] = None,
     ) -> None:
         """
         所有状态变化唯一入口
@@ -214,12 +225,12 @@ class WordService:
         )
 
     async def _write_event(
-        self,
-        word_id: UUID,
-        event_type: WordEventType,
-        actor_type: str,
-        actor_id: UUID,
-        payload: Optional[Dict] = None,
+            self,
+            word_id: UUID,
+            event_type: WordEventType,
+            actor_type: str,
+            actor_id: UUID,
+            payload: Optional[Dict] = None,
     ) -> None:
         await self.sb.insert_async("word_events", {
             "word_id": str(word_id),
