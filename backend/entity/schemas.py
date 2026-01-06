@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
@@ -36,17 +36,30 @@ class ProfileBase(BaseModel):
 
 class ProfileUpdate(BaseModel):
     """用于更新个人信息的模型，所有字段可选"""
-    id:UUID
+    id: UUID
     username: Optional[str] = None
     avatar_url: Optional[str] = None
     bio: Optional[str] = None
 
+
 class GetProfileRequest(BaseModel):
-    id:UUID
+    id: UUID
+
+
 class ProfileResponse(ProfileBase):
     """用于返回给前端的模型"""
     created_at: datetime
-    profile_account:Optional[str]
+    profile_account: Optional[str]
 
     class Config:
         from_attributes = True
+
+
+class PersonaUpdateStatsRequest(BaseModel):
+    user_id: UUID
+    category: str
+    tags: List[str]
+    duration: int = 0
+
+
+PersonaUpdateAvailableRequest = GetProfileRequest

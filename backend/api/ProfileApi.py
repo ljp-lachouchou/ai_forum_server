@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends
 from pydantic_core import ValidationError
 
-from backend.api.AuthApi import get_profile_service, get_auth_service
+from backend.api.AuthApi import get_profile_service
 from backend.entity.schemas import GetProfileRequest, ProfileResponse, ProfileUpdate
-from backend.service.AuthService import AuthService
 from backend.service.ProfileService import ProfileService
 from backend.api.ApiResponse import ApiResponse as AR
 
