@@ -2,10 +2,9 @@ import traceback
 from typing import Optional, Dict
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Body
+from fastapi import APIRouter, Depends, Body, BackgroundTasks
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 from milvus_model.hybrid import BGEM3EmbeddingFunction
-
 
 from ai.client.ClientBuilder import ClientBuilder, ClientType
 from ai.db.DBClient import DBClient
@@ -200,15 +199,18 @@ async def delete_word(id: UUID, service: WordService = Depends(get_word_service)
 # 成功
 @word_router.post("/ai/search", response_model=AR[Dict])
 async def ai_rag_search(
+        background_tasks:BackgroundTasks,
         query: str = Body(..., embed=True),
         service: WordService = Depends(get_word_service),
-        rq_service:RagQueryService = Depends(get_rag_query_service)
+        rq_service:RagQueryService = Depends(get_rag_query_service),
+
 ):
     """AI 智能搜索 (F06)：触发 RAG 流程"""
     try:
         result = await rq_service.query(query)
         ids = result.word_ids
         word_datas = await service.list_words_by_ids("word_id",ids)
+        # TODO 创建这个数据raw 推进数据库 异步进行 background_tasks
 
         return AR.success(data={
             "answer":result.answer,

@@ -36,15 +36,17 @@ class ProfileBase(BaseModel):
 
 class ProfileUpdate(BaseModel):
     """用于更新个人信息的模型，所有字段可选"""
+    id:UUID
     username: Optional[str] = None
     avatar_url: Optional[str] = None
     bio: Optional[str] = None
 
-
+class GetProfileRequest(BaseModel):
+    id:UUID
 class ProfileResponse(ProfileBase):
     """用于返回给前端的模型"""
-    id: UUID
     created_at: datetime
+    profile_account:Optional[str]
 
     class Config:
         from_attributes = True
