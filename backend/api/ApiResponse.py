@@ -18,3 +18,11 @@ class ApiResponse(BaseModel, Generic[T]):
     @classmethod
     def error(cls, code: int = 500, msg: str = "error"):
         return cls(code=code, msg=msg, data=None)
+
+    @classmethod
+    def cacheError(cls, code: int = 466, msg: str = "redis存储失败"):
+        return cls(code=code, msg=msg, data=None)
+
+    @classmethod
+    def controllableError(cls, msg: str, code: int = 521):
+        return cls(code=code, msg=msg, data=None)

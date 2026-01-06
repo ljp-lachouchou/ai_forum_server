@@ -24,3 +24,7 @@ milvus-model>=0.2.6
 supabase>=2.3.6
 
 langchain_deepseek
+
+upstash_redis==1.5.0
+
+email-validator

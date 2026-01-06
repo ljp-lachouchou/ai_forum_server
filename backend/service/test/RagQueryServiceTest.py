@@ -14,7 +14,7 @@ from backend.service.RagQueryService import RagQueryService
 from backend.service.WordService import WordService
 
 if __name__ == "__main__":
-    word_service = WordService(SupabaseClient().init_client())
+    word_service = WordService(SupabaseClient().client)
     rag_retriever = MilvusRagRetriever(DBClient.get_client(),
                                        RagConfigurationBuilder(
                                            bge_model=BGEM3EmbeddingFunction(

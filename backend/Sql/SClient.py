@@ -2,69 +2,83 @@ import os
 from pathlib import Path
 from typing import Optional, Any, Dict
 from dotenv import load_dotenv
-from supabase import create_client, Client
-from io import StringIO
+from supabase._sync.client import SyncClient
 
 from common.async_helper.AsyncWrapper import AsyncWrapper
 
 default_filter = {"status": "published"}
 
+
 class SupabaseClient:
-    _client: Optional[Client] = None
+    # 真正的全局单例客户端
+    _instance: Optional['SupabaseClient'] = None
+    _client: SyncClient = None
+
+    def __new__(cls, *args, **kwargs):
+        """确保全局只有一个 SupabaseClient 对象"""
+        if cls._instance is None:
+            cls._instance = super(SupabaseClient, cls).__new__(cls)
+        return cls._instance
 
     def __init__(self, url: str = None, key: str = None):
-        self.__url = url
-        self.__key = key
-        self.__request_semaphore = AsyncWrapper._upload_sem
+        # 只有第一次初始化时加载环境变量
+        if not hasattr(self, "_initialized"):
+            self._initialized = True
+            self._load_env(url, key)
 
-    def init_client(self):
+    def _load_env(self, url: str = None, key: str = None):
         if not self._client:
             env_path = Path(__file__).resolve().parents[1] / ".env"
-
-            print("=== SupabaseClient DEBUG ===")
-            print("SClient.py path:", Path(__file__).resolve())
-            print("Calculated env path:", env_path)
-            print("Env exists:", env_path.exists())
-            print("CWD:", os.getcwd())
-
             load_dotenv(dotenv_path=env_path, override=True)
 
-            print("SUPABASE_URL from env:", os.environ.get("SUPABASE_URL"))
-            print("SUPABASE_KEY from env:", os.environ.get("SUPABASE_KEY"))
-            print("============================")
+            final_url = url or os.environ.get("SUPABASE_URL")
+            final_key = key or os.environ.get("SUPABASE_KEY")
 
-            url = self.__url or os.environ.get("SUPABASE_URL")
-            key = self.__key or os.environ.get("SUPABASE_KEY")
-
-            if not url or not key:
+            if not final_url or not final_key:
                 raise RuntimeError("Supabase URL or KEY not provided")
 
             from supabase import create_client
-            self._client = create_client(url, key)
+            # 这里的 _client 是类变量，确保全局唯一
+            SupabaseClient._client = create_client(final_url, final_key)
 
-        return self
+    @property
+    def client(self):
+        """获取原始 Supabase 客户端的快捷方式"""
+        return self._client
+
+    def get_auth_client(self, token: Optional[str] = None):
+        """
+        核心改动：获取一个带身份的客户端。
+        如果传入 token，返回带身份的请求句柄；否则返回默认 client。
+        """
+        if token:
+            # 挂载 Token 到 postgrest
+            self._client.postgrest.auth(token)
+        return self._client
 
     def _insert(self, table: str, data: Dict[str, Any]):
         if not self._client:
             raise RuntimeError("Supabase client not initialized")
 
         res = self._client.table(table).insert(data).execute()
-        if res.error:
-            raise RuntimeError(res.error.message)
+        if hasattr(res, 'code') and res.code != 200:
+            raise RuntimeError(getattr(res, 'msg', '数据库查询失败'))
 
         return res.data
 
-    def _update(self, table: str, data: Dict[str, Any], filters: Dict[str, Any]):
+    def _update(self, table: str, data: Dict[str, Any], filters: Dict[str, Any], token: str = None):
         if not self._client:
             raise RuntimeError("Supabase client not initialized")
-
+        client = self._client
+        if token:
+            client.postgrest.auth(token)
         query = self._client.table(table).update(data)
         for k, v in filters.items():
             query = query.eq(k, v)
 
         res = query.execute()
-        if res.error:
-            raise RuntimeError(res.error.message)
+        if hasattr(res, 'code') and res.code != 200:
+            raise RuntimeError(getattr(res, 'msg', '数据库查询失败'))
 
         return res.data
 
@@ -81,8 +95,8 @@ class SupabaseClient:
             query = query.single()
 
         res = query.execute()
-        if res.error:
-            raise RuntimeError(res.error.message)
+        if hasattr(res, 'code') and res.code != 200:
+            raise RuntimeError(getattr(res, 'msg', '数据库查询失败'))
 
         return res.data
 
@@ -116,8 +130,8 @@ class SupabaseClient:
             raise RuntimeError("Supabase client not initialized")
 
         res = self._client.rpc(fn_name, params).execute()
-        if res.error:
-            raise RuntimeError(res.error.message)
+        if hasattr(res, 'code') and res.code != 200:
+            raise RuntimeError(getattr(res, 'msg', '数据库查询失败'))
 
         return res.data
 
@@ -130,8 +144,8 @@ class SupabaseClient:
             query = query.eq(k, v)
 
         res = query.execute()
-        if res.error:
-            raise RuntimeError(res.error.message)
+        if hasattr(res, 'code') and res.code != 200:
+            raise RuntimeError(getattr(res, 'msg', '数据库查询失败'))
 
         return res.data
 
@@ -140,8 +154,8 @@ class SupabaseClient:
         return self._insert(table, data)
 
     @AsyncWrapper.to_async(sem=AsyncWrapper._upload_sem)
-    def update_async(self, table: str, data: Dict[str, Any], filters: Dict[str, Any]):
-        return self._update(table, data, filters)
+    def update_async(self, table: str, data: Dict[str, Any], filters: Dict[str, Any], token: str = None):
+        return self._update(table, data, filters, token)
 
     @AsyncWrapper.to_async(sem=AsyncWrapper._upload_sem)
     def select_async(
@@ -161,7 +175,5 @@ class SupabaseClient:
         return self._delete(table, filters)
 
     @AsyncWrapper.to_async(sem=AsyncWrapper._upload_sem)
-    def mutil_select_async(self, table: str,tar_in_column:str,in_s:list, filters: Dict[str, Any]):
-        return self._mutil_select(table,tar_in_column,in_s, filters)
-
-
+    def mutil_select_async(self, table: str, tar_in_column: str, in_s: list, filters: Dict[str, Any]):
+        return self._mutil_select(table, tar_in_column, in_s, filters)

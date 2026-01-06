@@ -28,7 +28,7 @@ word_router = APIRouter(prefix="/api/v1", tags=["Words"])
 
 
 def get_word_service():
-    return WordService(SupabaseClient().init_client())
+    return WordService(SupabaseClient())
 
 
 def get_rag_manager():
@@ -161,7 +161,7 @@ async def list_published_words(
     except Exception as e:
         return AR.error(msg=str(e))
 
-
+# 成功
 @word_router.get("/words/{id}", response_model=AR)
 async def get_word_detail(id: UUID, service: WordService = Depends(get_word_service)):
     """获取文章详情 (关联 profiles 信息)"""
@@ -197,7 +197,7 @@ async def delete_word(id: UUID, service: WordService = Depends(get_word_service)
     except Exception as e:
         return AR.error(msg=str(e))
 
-
+# 成功
 @word_router.post("/ai/search", response_model=AR[Dict])
 async def ai_rag_search(
         query: str = Body(..., embed=True),
