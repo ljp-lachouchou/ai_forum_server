@@ -2,15 +2,14 @@ from fastapi import APIRouter, Depends
 
 from backend.Sql.SClient import SupabaseClient
 from backend.api.ApiResponse import ApiResponse as AR
-from backend.api.WordApi import get_llm_service
+from backend.api.services import get_persona_service
 from backend.entity.schemas import PersonaUpdateStatsRequest, PersonaUpdateAvailableRequest
 from backend.service.PersonaService import PersonaService
 
 persona_router = APIRouter(prefix='/api/v1/persona', tags=['persona'])
 
 
-def get_persona_service():
-    return PersonaService(SupabaseClient(), get_llm_service())
+
 
 
 @persona_router.put('/update_stats', response_model=AR)

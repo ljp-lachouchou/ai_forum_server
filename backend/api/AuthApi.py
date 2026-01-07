@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends
 from gotrue.errors import AuthApiError
 
-from backend.Sql.SClient import SupabaseClient
+
 from backend.api.ApiResponse import ApiResponse as AR
-from backend.entity.profile import ProfileSchema
+from backend.api.services import get_auth_service, get_redis_client, get_profile_service
+
 from backend.entity.schemas import LoginRequest, LoginData, RegisterRequest, RegisterResponse
 from backend.service.AuthService import AuthService
 from backend.Sql.cache.RedisCacheClient import RedisCacheClient
@@ -12,15 +13,7 @@ from backend.service.ProfileService import ProfileService
 auth_router = APIRouter(prefix="/api/v1", tags=["auth"])
 
 
-def get_auth_service():
-    return AuthService()
 
-
-def get_redis_client():
-    return RedisCacheClient()
-
-def get_profile_service():
-    return ProfileService(SupabaseClient())
 
 
 @auth_router.post("/login", response_model=AR[LoginData])

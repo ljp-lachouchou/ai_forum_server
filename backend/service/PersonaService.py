@@ -21,6 +21,8 @@ class PersonaService:
         print(stats)
         return data, stats
 
+
+
     def _build_tags_context(self, stats: dict):
         return f"""
         你是一个全能型用户行为分析专家。请分析下方的用户点击与时长数据，并提炼用户画像。

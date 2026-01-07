@@ -3,74 +3,27 @@ from typing import Optional, Dict
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Body, BackgroundTasks
-from langchain_text_splitters import MarkdownHeaderTextSplitter
-from milvus_model.hybrid import BGEM3EmbeddingFunction
 
-from ai.client.ClientBuilder import ClientBuilder, ClientType
-from ai.db.DBClient import DBClient
 from ai.db.collection_names import word_collection_name
-from ai.rag.RagConfiguration import RagConfigurationBuilder
-from ai.rag.RagManager import RagManager, MilvusRagRetriever
-from ai.rag.RagProcessor import MDMilvusRagProcessor
+
+from ai.rag.RagManager import RagManager
+
 from ai.rag.rag_wrapper import content_mapper
-from backend.Sql.SClient import SupabaseClient
+
 from backend.Sql.enums import WordStatus
 from backend.api.ApiResponse import ApiResponse as AR
+from backend.api.PersonaApi import get_persona_service
+from backend.api.services import get_word_service, get_rag_query_service, get_rag_manager, get_rag_summary_service
 
 from backend.entity.MDword import MDWord
-from backend.service.HybridSearchService import HybridSearchService
-from backend.service.LLMService import DeepSeekLLMService
-from backend.service.RagQueryService import RagQueryService
+from backend.entity.schemas import AISearch
+
+from backend.service.PersonaService import PersonaService
+from backend.service.RagQueryService import RagQueryService, RagResult
+from backend.service.RagSummaryService import RagSummaryService
 from backend.service.WordService import WordService
 
 word_router = APIRouter(prefix="/api/v1", tags=["Words"])
-
-
-def get_word_service():
-    return WordService(SupabaseClient())
-
-
-def get_rag_manager():
-    manager = RagManager(RagConfigurationBuilder, MDMilvusRagProcessor)
-    return manager.build(bge_model=BGEM3EmbeddingFunction(model_name="../model/bge-m3",
-                                                          use_fp16=False, device="cpu"),
-                         splitter=MarkdownHeaderTextSplitter(headers_to_split_on=[
-                             ("#", "Header 1"),
-                             ("##", "Header 2"),
-                             ("###", "Header 3"),
-                         ]),
-                         content_loader=None,
-                         db_instance=DBClient.get_client())
-
-
-def get_search_service():
-    word_service = get_word_service()
-    rag_retriever = MilvusRagRetriever(DBClient.get_client(),
-                                       RagConfigurationBuilder(
-                                           bge_model=BGEM3EmbeddingFunction(
-                                               model_name="../model/bge-m3",
-                                               use_fp16=False, device="cpu"),
-                                           splitter=MarkdownHeaderTextSplitter(headers_to_split_on=[
-                                               ("#", "Header 1"),
-                                               ("##", "Header 2"),
-                                               ("###", "Header 3"),
-                                           ]),
-                                           content_loader=None,
-                                           db_instance=DBClient.get_client()
-                                       ))
-    return HybridSearchService(
-        rag_retriever,
-        word_service
-    )
-
-
-def get_llm_service():
-    model_client = ClientBuilder(ClientType.DeepSeek).build()
-    return DeepSeekLLMService(model_client)
-
-
-def get_rag_query_service():
-    return RagQueryService(get_search_service(), get_llm_service())
 
 
 @word_router.post("/words", response_model=AR)
@@ -160,6 +113,7 @@ async def list_published_words(
     except Exception as e:
         return AR.error(msg=str(e))
 
+
 # 成功
 @word_router.get("/words/{id}", response_model=AR)
 async def get_word_detail(id: UUID, service: WordService = Depends(get_word_service)):
@@ -196,25 +150,56 @@ async def delete_word(id: UUID, service: WordService = Depends(get_word_service)
     except Exception as e:
         return AR.error(msg=str(e))
 
+
+async def _whether_llm(
+        catch_data: RagResult,
+        service: WordService,
+):
+    if not catch_data:
+        return None
+    ids = catch_data.word_ids
+    word_datas = await service.list_words_by_ids("word_id", ids)
+    if catch_data.answer:
+        return {
+            "answer": catch_data.answer,
+            "reference_words": word_datas
+        }
+    else:
+        return None
+
+
 # 成功
 @word_router.post("/ai/search", response_model=AR[Dict])
 async def ai_rag_search(
-        background_tasks:BackgroundTasks,
-        query: str = Body(..., embed=True),
+        background_tasks: BackgroundTasks,
+        payload: AISearch,
         service: WordService = Depends(get_word_service),
-        rq_service:RagQueryService = Depends(get_rag_query_service),
-
+        rq_service: RagQueryService = Depends(get_rag_query_service),
+        persona_service: PersonaService = Depends(get_persona_service),
+        rag_summary_service: RagSummaryService = Depends(get_rag_summary_service)
 ):
     """AI 智能搜索 (F06)：触发 RAG 流程"""
     try:
-        result = await rq_service.query(query)
+        # 先进行hash命中
+        catch_hash_data = await rag_summary_service.hash_cache(payload.query, payload.u_id)
+        rs = await _whether_llm(catch_hash_data, service)
+        if rs:
+            return AR.success(rs)
+        # 在进行语义命中
+        catch_data = await rag_summary_service.semantics_cache(payload.query, payload.u_id)
+        rs = await _whether_llm(catch_data, service)
+        if rs:
+            return AR.success(rs)
+        # 进行搜索
+        data, _ = await persona_service._get_data_and_stats(payload.u_id)
+        result = await rq_service.query(payload.query, data)
         ids = result.word_ids
-        word_datas = await service.list_words_by_ids("word_id",ids)
-        # TODO 创建这个数据raw 推进数据库 异步进行 background_tasks
-
+        word_datas = await service.list_words_by_ids("word_id", ids)
+        background_tasks.add_task(rag_summary_service.insert_summary, payload.query,
+                                  result.answer, ids, payload.u_id)
         return AR.success(data={
-            "answer":result.answer,
-            "reference_words":word_datas
+            "answer": result.answer,
+            "reference_words": word_datas
         })
     except Exception as e:
         traceback.print_exc()

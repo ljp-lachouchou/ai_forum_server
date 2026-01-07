@@ -63,3 +63,7 @@ class PersonaUpdateStatsRequest(BaseModel):
 
 
 PersonaUpdateAvailableRequest = GetProfileRequest
+
+class AISearch(BaseModel):
+    u_id:UUID
+    query:str
