@@ -3,6 +3,7 @@ from enum import Enum
 
 from langchain_deepseek import ChatDeepSeek
 
+from common.env import load_env
 
 
 class ClientType(Enum):
@@ -16,8 +17,7 @@ class ClientType(Enum):
 
 class ClientBuilder:
     def __init__(self,clientType:ClientType,api_key_tag = 'DEEPSEEK_API_KEY',base_url = "https://api.deepseek.com",model = "deepseek-chat"):
-        from dotenv import load_dotenv
-        load_dotenv()
+        load_env()
         self.api_key = os.environ.get(api_key_tag)
         self.base_url = base_url
         self.model = model

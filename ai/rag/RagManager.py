@@ -9,7 +9,7 @@ from pymilvus import MilvusClient
 
 from ai.rag.RagConfiguration import RagConfigurationBuilder
 from ai.rag.RagProcessor import BaseRagProcessor
-from backend.entity.MDword import MDWord
+from ai.rag.types import WordModelLike
 
 C = TypeVar("C", bound=RagConfigurationBuilder)
 P = TypeVar("P", bound=BaseRagProcessor)
@@ -26,7 +26,7 @@ class RagManager(Generic[C, P]):
         config_builder = self.configurationBuilder_cls(**kwargs)
         self.actual_processor = self.processor_cls(config_builder)
 
-    async def start_process(self, collection_name: str, md_word: MDWord, mapper_func):
+    async def start_process(self, collection_name: str, md_word: WordModelLike, mapper_func):
         if not self.actual_processor:
             raise RuntimeError("请先调用 build()")
 

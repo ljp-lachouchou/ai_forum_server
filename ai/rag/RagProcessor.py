@@ -12,7 +12,7 @@ from langchain_core.documents import Document
 
 from ai.db.DBClient import DBClient
 from ai.rag.RagConfiguration import RagConfigurationBuilder
-from backend.entity.MDword import MDWord
+from ai.rag.types import WordModelLike
 
 
 class RagProcessor(ABC):
@@ -42,7 +42,7 @@ class RagProcessor(ABC):
 
     @abstractmethod
     async def save_generic(self, collection_name: str, chunks: List[Document],
-                           vector_dict: dict, mapper_func,word_model:MDWord) -> bool:
+                           vector_dict: dict, mapper_func,word_model:WordModelLike) -> bool:
         """保存到向量数据库 (如 Milvus)"""
         pass
 class BaseRagProcessor(RagProcessor,ABC):
@@ -126,7 +126,7 @@ class MDMilvusRagProcessor(BaseRagProcessor):
             return {}
 
     async def save_generic(self, collection_name: str, chunks: List[Document],
-                           vector_dict: dict, mapper_func, word_model: MDWord) -> bool:
+                           vector_dict: dict, mapper_func, word_model: WordModelLike) -> bool:
         dense_vectors = vector_dict.get("dense")
         sparse_vectors = vector_dict.get("sparse")
 

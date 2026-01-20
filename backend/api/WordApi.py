@@ -13,7 +13,8 @@ from ai.rag.rag_wrapper import content_mapper
 from backend.Sql.enums import WordStatus
 from backend.api.ApiResponse import ApiResponse as AR
 from backend.api.PersonaApi import get_persona_service
-from backend.api.services import get_word_service, get_rag_query_service, get_rag_manager, get_rag_summary_service
+from backend.api.services import (get_word_service, get_rag_query_service,
+                                  get_rag_manager, get_rag_summary_service)
 
 from backend.entity.MDword import MDWord
 from backend.entity.schemas import AISearch
@@ -50,7 +51,6 @@ async def update_word(id: UUID, author_id: UUID,
         await service.update_word(id, author_id, payload)
         return AR.success(msg="更新成功")
     except PermissionError:
-        # ✅ 处理没权限的情况
         return AR.error(code=403, msg="对不起，你不是作者，没有权限修改")
     except Exception as e:
         return AR.error(msg=str(e))

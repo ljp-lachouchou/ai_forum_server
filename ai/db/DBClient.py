@@ -1,13 +1,14 @@
 import os
 from typing import Optional
 
-from dotenv import load_dotenv
 from pymilvus import MilvusClient, DataType
+
+from common.env import load_env
 class DBClient:
     __client : Optional[MilvusClient] = None
     @classmethod
     def _create_uri(cls):
-        load_dotenv()
+        load_env()
         host = os.environ.get('MILVUS_DB_HOST')
         port = os.environ.get('MILVUS_DB_PORT')
         return host,port
@@ -77,7 +78,7 @@ if __name__ == "__main__":
     create_title_collection()
 def init_collection():
     # 1. 初始化客户端
-    load_dotenv()
+    load_env()
     host = os.environ.get('MILVUS_DB_HOST')
     port = os.environ.get('MILVUS_DB_PORT')
     client = MilvusClient(uri=f"{host}:{port}")

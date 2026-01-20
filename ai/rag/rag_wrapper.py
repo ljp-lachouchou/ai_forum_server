@@ -1,7 +1,7 @@
-from backend.entity.MDword import MDWord
+from ai.rag.types import WordModelLike
 
 
-def content_mapper(chunk, dense, sparse, word_model: MDWord):
+def content_mapper(chunk, dense, sparse, word_model: WordModelLike):
     return {
                     "word_id": str(word_model.id),
                     "raw_text": chunk.page_content,
@@ -17,7 +17,7 @@ def content_mapper(chunk, dense, sparse, word_model: MDWord):
                     }
                 }
 
-def title_mapper(chunk, dense, sparse,word_model:MDWord):
+def title_mapper(chunk, dense, sparse,word_model:WordModelLike):
     return {
         "word_id": str(word_model.id),
         "title": word_model.word_name,

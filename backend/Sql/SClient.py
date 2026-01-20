@@ -1,10 +1,10 @@
 import os
-from pathlib import Path
 from typing import Optional, Any, Dict
-from dotenv import load_dotenv
+
 from supabase._sync.client import SyncClient
 
 from common.async_helper.AsyncWrapper import AsyncWrapper
+from common.env import load_env
 
 default_filter = {"status": "published"}
 
@@ -28,8 +28,7 @@ class SupabaseClient:
 
     def _load_env(self, url: str = None, key: str = None):
         if not self._client:
-            env_path = Path(__file__).resolve().parents[1] / ".env"
-            load_dotenv(dotenv_path=env_path, override=True)
+            load_env()
 
             final_url = url or os.environ.get("SUPABASE_URL")
             final_key = key or os.environ.get("SUPABASE_KEY")
