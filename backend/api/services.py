@@ -10,7 +10,17 @@ from ai.rag.RagProcessor import MDMilvusRagProcessor
 from backend.Sql.SClient import SupabaseClient
 from backend.Sql.cache.RedisCacheClient import RedisCacheClient
 from backend.service.AuthService import AuthService
+from backend.service.BookmarksService import BookmarkService
+from backend.service.CommentService import CommentService
+from backend.service.CommentSummaryService import CommentSummaryService
 from backend.service.HybridSearchService import HybridSearchService
+from backend.service.LikeService import LikeService
+from backend.service.FollowService import FollowService
+from backend.service.AIPostReviewService import AIPostReviewService
+from backend.service.NotificationService import NotificationService
+from backend.service.ReportService import ReportService
+from backend.service.TreeholeService import TreeholeService
+from backend.service.SyncService import SyncService
 from backend.service.LLMService import DeepSeekLLMService
 from backend.service.PersonaService import PersonaService
 from backend.service.ProfileService import ProfileService
@@ -126,3 +136,53 @@ def get_persona_service():
 @lru_cache(maxsize=1)
 def get_rag_summary_service():
     return RagSummaryService(SupabaseClient(), _get_bge_model())
+
+
+@lru_cache(maxsize=1)
+def get_comment_service():
+    return CommentService(SupabaseClient())
+
+
+@lru_cache(maxsize=1)
+def get_comment_summary_service():
+    return CommentSummaryService(get_comment_service(), get_llm_service())
+
+
+@lru_cache(maxsize=1)
+def get_like_service():
+    return LikeService(SupabaseClient())
+
+
+@lru_cache(maxsize=1)
+def get_bookmark_service():
+    return BookmarkService(SupabaseClient())
+
+
+@lru_cache(maxsize=1)
+def get_treehole_service():
+    return TreeholeService(SupabaseClient())
+
+
+@lru_cache(maxsize=1)
+def get_report_service():
+    return ReportService(SupabaseClient())
+
+
+@lru_cache(maxsize=1)
+def get_sync_service():
+    return SyncService(SupabaseClient())
+
+
+@lru_cache(maxsize=1)
+def get_notification_service():
+    return NotificationService(SupabaseClient())
+
+
+@lru_cache(maxsize=1)
+def get_follow_service():
+    return FollowService(SupabaseClient())
+
+
+@lru_cache(maxsize=1)
+def get_ai_post_review_service():
+    return AIPostReviewService(SupabaseClient())

@@ -1,5 +1,6 @@
 import traceback
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
+from urllib.parse import urlparse
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Body, BackgroundTasks
@@ -14,7 +15,9 @@ from backend.Sql.enums import WordStatus
 from backend.api.ApiResponse import ApiResponse as AR
 from backend.api.PersonaApi import get_persona_service
 from backend.api.services import (get_word_service, get_rag_query_service,
-                                  get_rag_manager, get_rag_summary_service)
+                                  get_rag_manager, get_rag_summary_service,
+                                  get_report_service, get_llm_service,
+                                  get_ai_post_review_service)
 
 from backend.entity.MDword import MDWord
 from backend.entity.schemas import AISearch
@@ -22,9 +25,13 @@ from backend.entity.schemas import AISearch
 from backend.service.PersonaService import PersonaService
 from backend.service.RagQueryService import RagQueryService, RagResult
 from backend.service.RagSummaryService import RagSummaryService
+from backend.service.ReportService import ReportService
 from backend.service.WordService import WordService
+from backend.service.AIPostReviewService import AIPostReviewService
+from backend.service.LLMService import LLMService
 
 word_router = APIRouter(prefix="/api/v1", tags=["Words"])
+AI_SYSTEM_ADMIN_ID = UUID("00000000-0000-0000-0000-000000000000")
 
 
 @word_router.post("/words", response_model=AR)
@@ -35,7 +42,8 @@ async def create_word(payload: dict, service: WordService = Depends(get_word_ser
             author_id=payload["author_id"],
             word_url=payload["word_url"],
             category=payload["category"],
-            tags=payload.get("tags", [])
+            tags=payload.get("tags", []),
+            word_name=payload.get("word_name")
         )
         return AR.success(data)
     except Exception as e:
@@ -57,11 +65,35 @@ async def update_word(id: UUID, author_id: UUID,
 
 
 @word_router.post("/words/{id}/submit", response_model=AR)
-async def submit_review(id: UUID, author_id: UUID, service: WordService = Depends(get_word_service)):
-    """提交审核 (F09)"""
+async def submit_review(
+    id: UUID,
+    author_id: UUID,
+    service: WordService = Depends(get_word_service),
+    llm_service: LLMService = Depends(get_llm_service),
+    review_service: AIPostReviewService = Depends(get_ai_post_review_service),
+):
+    """Submit for review (F09)."""
     await service.submit_review(id, author_id)
-    # TODO ai审查
-    return AR.success(msg="已提交 AI 审核")
+    try:
+        word = await service.get_word(id)
+        content = (word.get("raw_text") or word.get("word_url") or "").strip()
+        content = await _resolve_review_content(content)
+        is_safe, reason = await _ai_auto_review(content, llm_service)
+        await review_service.create_review(
+            id,
+            "approved" if is_safe else "rejected",
+            reason or None,
+        )
+        if not is_safe:
+            await service.reject(
+                id,
+                admin_id=AI_SYSTEM_ADMIN_ID,
+                reason=reason or "AI review failed",
+            )
+            return AR.error(code=400, msg="content rejected by AI review")
+    except Exception as e:
+        return AR.error(msg=f"review failed: {str(e)}")
+    return AR.success(msg="AI review passed")
 
 
 @word_router.post("/words/{id}/publish", response_model=AR)
@@ -72,7 +104,6 @@ async def publish(id: UUID, admin_id: UUID,
     word_data = await service.get_word(id)
     author_id = word_data["author_id"]
     try:
-        await service.publish(id, admin_id)
         # 推入rag
         word = MDWord(
             id=word_data['word_id'],
@@ -86,32 +117,55 @@ async def publish(id: UUID, admin_id: UUID,
             is_delete=False,
         )
         await rag_manager.start_process(word_collection_name, word, content_mapper)
+        await service.publish(id, admin_id)
     except Exception as e:
-        # 失败就让其回到submit_review
-        await service.submit_review(id, author_id)
+        try:
+            await service.reject(id, admin_id, f"publish failed, returned to author: {str(e)}")
+        except Exception:
+            pass
         return AR.error(msg=str(e))
     return AR.success(msg="发布成功，已进入 RAG 检索库")
 
 
 @word_router.post("/words/{id}/reject", response_model=AR)
-async def reject(id: UUID, admin_id: UUID, reson: str, service: WordService = Depends(get_word_service)):
+async def reject(
+        id: UUID,
+        admin_id: UUID,
+        reson: str,
+        service: WordService = Depends(get_word_service),
+        report_service: ReportService = Depends(get_report_service),
+):
     """拒绝发布"""
-    await service.reject(id, admin_id, reson)
-    # TODO 推回给作者端处理
+    try:
+        await service.reject(id, admin_id, reson)
+        await report_service.create_report(admin_id, "word", id, reson)
+    except Exception as e:
+        return AR.error(msg=str(e))
     return AR.success(msg="文章已被拒绝发布，退回给作者")
 
 
 @word_router.get("/words/feeds", response_model=AR)
 async def list_published_words(
         category: Optional[str] = None,
+        mode: str = "latest",
+        user_id: Optional[UUID] = None,
+        limit: int = 20,
         service: WordService = Depends(get_word_service)
 ):
-    """首页信息流 (F02)：支持按分类筛选已发布的文章"""
+    """Homepage feed (F02): list published words by category"""
     try:
-        data = await service.list_words(status=WordStatus.PUBLISHED, category=category)
+        data = await service.list_feed(
+            mode=mode,
+            category=category,
+            user_id=user_id,
+            limit=limit,
+        )
         return AR.success(data)
+    except ValueError as e:
+        return AR.error(code=400, msg=str(e))
     except Exception as e:
         return AR.error(msg=str(e))
+
 
 
 # 成功
@@ -120,9 +174,23 @@ async def get_word_detail(id: UUID, service: WordService = Depends(get_word_serv
     """获取文章详情 (关联 profiles 信息)"""
     try:
         data = await service.get_word(id)
+        if data.get("status") == WordStatus.REJECTED.value:
+            reject_reason = await service.get_latest_reject_reason(id)
+            if reject_reason:
+                data["reject_reason"] = reject_reason
         return AR.success(data)
     except Exception as e:
         return AR.error(msg=f"未找到该文章: {str(e)}")
+
+
+@word_router.get("/words/{id}/events", response_model=AR)
+async def get_word_events(id: UUID, service: WordService = Depends(get_word_service)):
+    """Get word events."""
+    try:
+        data = await service.get_events(id)
+        return AR.success(data)
+    except Exception as e:
+        return AR.error(msg=str(e))
 
 
 @word_router.post("/words/{id}/archive", response_model=AR)
@@ -207,36 +275,190 @@ async def ai_rag_search(
 
 
 @word_router.post("/ai/review", response_model=AR)
-async def ai_auto_review(id: UUID, service: WordService = Depends(get_word_service)):
-    """智能内容审核 (F09)：拦截违规内容"""
+async def ai_auto_review(
+    id: UUID,
+    service: WordService = Depends(get_word_service),
+    llm_service: LLMService = Depends(get_llm_service),
+    review_service: AIPostReviewService = Depends(get_ai_post_review_service),
+):
+    """AI content review (F09)."""
     try:
         word = await service.get_word(id)
-        content = word.get("raw_text", "")
-
-        # 调用 Moderation API (如阿里云、百度或 LLM 自检)
-        is_safe = True  # 模拟审核结果
-
+        content = (word.get("raw_text") or word.get("word_url") or "").strip()
+        content = await _resolve_review_content(content)
+        is_safe, reason = await _ai_auto_review(content, llm_service)
+        await review_service.create_review(
+            id,
+            "approved" if is_safe else "rejected",
+            reason or None,
+        )
         if is_safe:
-            # 审核通过，保持 PENDING 或进入待人工审核
-            return AR.success(msg="AI 审核通过")
-        else:
-            # 违规则直接调用 reject 变更为 REJECTED 状态
-            await service.reject(id, admin_id=UUID("0000..."), reason="AI 自动审核未通过：发现违规内容")
-            return AR.error(code=400, msg="内容违规，已被系统拦截")
+            return AR.success(msg="AI review passed")
+        await service.reject(
+            id,
+            admin_id=AI_SYSTEM_ADMIN_ID,
+            reason=reason or "AI review failed",
+        )
+        return AR.error(code=400, msg="content rejected by AI review")
     except Exception as e:
-        return AR.error(msg=f"审核服务异常: {str(e)}")
+        return AR.error(msg=f"review failed: {str(e)}")
 
 
 @word_router.post("/ai/assist/post", response_model=AR)
-async def ai_assist_post(content: str = Body(..., embed=True)):
-    """辅助发帖 (F07)：自动生成吸睛标题和标签"""
+async def ai_assist_post(
+    content: str = Body(..., embed=True),
+    llm_service: LLMService = Depends(get_llm_service),
+):
+    """AI assist post (F07): generate title and tags"""
     try:
-        # 调用 LLM 处理正文并提取关键词
-        # suggestions = llm.generate_suggestions(content)
-        data = {
-            "suggested_titles": ["标题 1", "标题 2"],
-            "suggested_tags": ["标签 A", "标签 B"]
-        }
+        prompt = _build_assist_prompt(content, strict=True)
+        raw = await llm_service.generate(prompt)
+        data = _parse_assist_response(raw, content)
+        if len(data.get("suggested_titles", [])) < 3 or len(data.get("suggested_tags", [])) < 5:
+            raw_retry = await llm_service.generate(_build_assist_prompt(content, strict=True, retry=True))
+            data = _parse_assist_response(raw_retry, content)
+
+        data = _ensure_assist_minimums(data, content)
         return AR.success(data)
     except Exception as e:
         return AR.error(msg=str(e))
+
+
+def _parse_assist_response(raw: str, content: str) -> Dict:
+    import json
+    import re
+
+    try:
+        parsed = json.loads(raw)
+        titles = parsed.get("titles") or parsed.get("suggested_titles") or []
+        tags = parsed.get("tags") or parsed.get("suggested_tags") or []
+        if isinstance(titles, list) and isinstance(tags, list):
+            return {"suggested_titles": titles, "suggested_tags": tags}
+    except Exception:
+        match = re.search(r"\{[\s\S]*\}", raw or "")
+        if match:
+            try:
+                parsed = json.loads(match.group(0))
+                titles = parsed.get("titles") or parsed.get("suggested_titles") or []
+                tags = parsed.get("tags") or parsed.get("suggested_tags") or []
+                if isinstance(titles, list) and isinstance(tags, list):
+                    return {"suggested_titles": titles, "suggested_tags": tags}
+            except Exception:
+                pass
+
+    fallback_title = (content or "").strip()[:20] or "Suggested title"
+    return {"suggested_titles": [fallback_title], "suggested_tags": []}
+
+
+def _build_assist_prompt(content: str, strict: bool = True, retry: bool = False) -> str:
+    guidance = "Return JSON only. No extra text." if strict else "Return JSON."
+    if retry:
+        guidance = "Return valid JSON only. Do not include any other text."
+    return (
+        "You are an assistant that extracts titles and tags from content.\n"
+        f"{guidance}\n"
+        "JSON schema: {\"titles\": [string, string, string], \"tags\": [string, string, string, string, string]}\n"
+        f"Content: {content}"
+    )
+
+
+def _ensure_assist_minimums(data: Dict, content: str) -> Dict:
+    titles = data.get("suggested_titles") or []
+    tags = data.get("suggested_tags") or []
+
+    titles = [t for t in titles if isinstance(t, str) and t.strip()]
+    tags = [t for t in tags if isinstance(t, str) and t.strip()]
+
+    if len(titles) < 3:
+        fallback_title = (content or "").strip()[:24] or "Suggested title"
+        while len(titles) < 3:
+            titles.append(fallback_title if len(titles) == 0 else f"{fallback_title} ({len(titles)+1})")
+
+    if len(tags) < 5:
+        tags = _fallback_tags(content, tags)
+
+    return {"suggested_titles": titles[:3], "suggested_tags": tags[:5]}
+
+
+def _fallback_tags(content: str, existing: list) -> list:
+    import re
+
+    tags = list(existing)
+    keywords = [
+        "IntelliJ IDEA",
+        "Continue",
+        "DeepSeek",
+        "API",
+        "插件",
+        "AI 编程助手",
+        "IDE",
+        "配置",
+        "教程",
+    ]
+    for kw in keywords:
+        if kw in (content or "") and kw not in tags:
+            tags.append(kw)
+
+    if len(tags) < 5:
+        words = re.findall(r"[A-Za-z][A-Za-z0-9\\-\\.]{2,}", content or "")
+        for w in words:
+            if w not in tags:
+                tags.append(w)
+            if len(tags) >= 5:
+                break
+
+    return tags
+
+
+async def _ai_auto_review(content: str, llm_service: LLMService) -> Tuple[bool, str]:
+    import json
+
+    if not content:
+        return True, ""
+
+    prompt = (
+        "You are a strict content moderator. Decide if the content is safe. "
+        "Return JSON only: {\"is_safe\": true/false, \"reason\": \"\"}\n"
+        f"Content: {content}"
+    )
+    raw = await llm_service.generate(prompt)
+    try:
+        data = json.loads(raw)
+        is_safe = bool(data.get("is_safe", True))
+        reason = (data.get("reason") or "").strip()
+        print(is_safe, reason)
+        return is_safe, reason
+    except Exception:
+        lowered = (raw or "").lower()
+        if "unsafe" in lowered or "reject" in lowered or "violation" in lowered:
+            return False, (raw or "").strip()[:200]
+        return True, ""
+
+
+async def _resolve_review_content(content: str) -> str:
+    content = (content or "").strip()
+    if not content:
+        return ""
+
+    parsed = urlparse(content)
+    if parsed.scheme in ("http", "https"):
+        fetched = await _fetch_url_text(content)
+        return fetched or content
+    return content
+
+
+async def _fetch_url_text(url: str, max_chars: int = 8000) -> str:
+    try:
+        import aiohttp
+    except Exception:
+        return ""
+
+    timeout = aiohttp.ClientTimeout(total=8)
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url) as resp:
+                resp.raise_for_status()
+                text = await resp.text(errors="ignore")
+                return text.strip()[:max_chars]
+    except Exception:
+        return ""

@@ -67,3 +67,52 @@ PersonaUpdateAvailableRequest = GetProfileRequest
 class AISearch(BaseModel):
     u_id:UUID
     query:str
+
+
+class CommentCreateRequest(BaseModel):
+    author_id: UUID
+    content: str
+
+
+class UserActionRequest(BaseModel):
+    user_id: UUID
+
+
+class TreeholeCreateRequest(BaseModel):
+    author_id: UUID
+    content: str
+    is_anonymous: bool = True
+
+
+class NotificationCreateRequest(BaseModel):
+    user_id: UUID
+    type: str
+    content: str
+    ref_type: Optional[str] = None
+    ref_id: Optional[UUID] = None
+
+
+class NotificationReadRequest(BaseModel):
+    user_id: UUID
+    notification_ids: List[UUID]
+
+
+class SyncIdsRequest(BaseModel):
+    ids: List[UUID]
+
+
+class SyncIdsWithUserRequest(BaseModel):
+    user_id: UUID
+    ids: List[UUID]
+
+
+class FollowRequest(BaseModel):
+    user_id: UUID
+    follow_id: UUID
+
+
+class ReportCreateRequest(BaseModel):
+    reporter_id: Optional[UUID] = None
+    target_type: str
+    target_id: UUID
+    reason: str

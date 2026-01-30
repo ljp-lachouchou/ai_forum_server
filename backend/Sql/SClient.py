@@ -81,7 +81,14 @@ class SupabaseClient:
 
         return res.data
 
-    def _select(self, table: str, filters: Dict[str, Any] = None, single: bool = False):
+    def _select(
+            self,
+            table: str,
+            filters: Dict[str, Any] = None,
+            single: bool = False,
+            order_by: Optional[str] = None,
+            desc: bool = False,
+    ):
         if not self._client:
             raise RuntimeError("Supabase client not initialized")
 
@@ -89,6 +96,9 @@ class SupabaseClient:
         if filters:
             for k, v in filters.items():
                 query = query.eq(k, v)
+
+        if order_by:
+            query = query.order(order_by, desc=desc)
 
         if single:
             query = query.single()
@@ -161,9 +171,11 @@ class SupabaseClient:
             self,
             table: str,
             filters: Dict[str, Any] = None,
-            single: bool = False
+            single: bool = False,
+            order_by: Optional[str] = None,
+            desc: bool = False,
     ):
-        return self._select(table, filters, single)
+        return self._select(table, filters, single, order_by, desc)
 
     @AsyncWrapper.to_async(sem=AsyncWrapper._upload_sem)
     def rpc_async(self, fn_name: str, params: Dict[str, Any]):

@@ -23,3 +23,10 @@ __pycache__/
 .vscode/
 .idea/
 model/
+
+# Logs
+*.log
+
+# Secrets / service accounts
+*firebase-adminsdk*.json
+backend/ai-forum-557da-firebase-adminsdk-fbsvc-a6a5bdb574.json

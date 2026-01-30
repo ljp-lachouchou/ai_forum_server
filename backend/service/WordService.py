@@ -26,12 +26,14 @@ class WordService:
             word_url: str,
             category: str,
             tags: List[str],
+            word_name: Optional[str] = None,
     ) -> Dict:
         word = await self.sb.insert_async("words", {
             "author_id": str(author_id),
             "word_url": word_url,
             "category": category,
             "tags": tags,
+            "word_name": word_name,
             "status": WordStatus.DRAFT.value,
         })
 
@@ -112,6 +114,48 @@ class WordService:
 
         return await self.sb.select_async("words", filters=filters)
 
+    async def list_feed(
+        self,
+        mode: str = "latest",
+        category: Optional[str] = None,
+        user_id: Optional[UUID] = None,
+        limit: int = 20,
+    ) -> List[dict]:
+        query = (
+            self.sb._client
+            .table("words")
+            .select("*")
+            .eq("status", WordStatus.PUBLISHED.value)
+        )
+        if category:
+            query = query.eq("category", category)
+
+        if mode == "latest":
+            query = query.order("created_at", desc=True)
+        elif mode == "recommend":
+            # TODO: replace with real recommendation ranking logic.
+            query = query.order("updated_at", desc=True)
+        elif mode == "follow":
+            # TODO: replace follow lookup with dedicated follow service when ready.
+            if not user_id:
+                return []
+            follow_rows = (
+                self.sb._client
+                .table("follows")
+                .select("follow_id")
+                .eq("user_id", str(user_id))
+                .execute()
+            )
+            follow_ids = [row["follow_id"] for row in (follow_rows.data or [])]
+            if not follow_ids:
+                return []
+            query = query.in_("author_id", follow_ids).order("created_at", desc=True)
+        else:
+            raise ValueError("Invalid feed mode")
+
+        res = query.limit(limit).execute()
+        return res.data or []
+
     async def list_words_by_ids(self, tar_in_column: str,
                                 ids: list, status: Optional[WordStatus] = WordStatus.PUBLISHED):
         filters = {}
@@ -186,6 +230,25 @@ class WordService:
             "word_events",
             filters={"word_id": str(word_id)},
         )
+
+    async def get_latest_reject_reason(self, word_id: UUID) -> Optional[str]:
+        res = (
+            self.sb._client
+            .table("word_events")
+            .select("payload")
+            .eq("word_id", str(word_id))
+            .eq("event_type", WordEventType.REJECT.value)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        data = res.data or []
+        if not data:
+            return None
+        payload = data[0].get("payload") or {}
+        if isinstance(payload, dict):
+            return payload.get("reason")
+        return None
 
     # =========================
     # 内部工具方法（核心价值）
