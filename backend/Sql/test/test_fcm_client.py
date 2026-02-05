@@ -8,77 +8,105 @@ _root = Path(__file__).resolve().parents[3]
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
-_firebase_admin = types.ModuleType("firebase_admin")
-_credentials = types.ModuleType("firebase_admin.credentials")
-_messaging = types.ModuleType("firebase_admin.messaging")
+_jpush = types.ModuleType("jpush")
+_common = types.ModuleType("jpush.common")
+_jpush.__path__ = []
+_jpush.common = _common
 
-
-class _DummyApp:
-    pass
-
-
-class _DummyCred:
-    def __init__(self, path):
-        self.path = path
-
-
-_app = None
 _sent = []
 
 
-def _get_app():
-    if _app is None:
-        raise ValueError("not initialized")
-    return _app
+class _DummyPush:
+    def __init__(self):
+        self.audience = None
+        self.platform = None
+        self.notification = None
+        self.message = None
+
+    def send(self):
+        _sent.append(self)
+        return "msg-id"
 
 
-def _initialize_app(cred):
-    global _app
-    _app = _DummyApp()
-    _app.cred = cred
-    return _app
+class _DummyClient:
+    def __init__(self, app_key, master_secret):
+        self.app_key = app_key
+        self.master_secret = master_secret
+
+    def create_push(self):
+        return _DummyPush()
 
 
-def _certificate(path):
-    return _DummyCred(path)
+class _DummyNotification:
+    def __init__(self, alert=None, android=None, ios=None):
+        self.alert = alert
+        self.android = android
+        self.ios = ios
 
 
-class _Notification:
-    def __init__(self, title=None, body=None):
+class _DummyAndroid:
+    def __init__(self, alert=None, title=None, extras=None):
+        self.alert = alert
         self.title = title
-        self.body = body
+        self.extras = extras
 
 
-class _Message:
-    def __init__(self, notification=None, data=None, topic=None):
-        self.notification = notification
-        self.data = data
-        self.topic = topic
+class _DummyIOS:
+    def __init__(self, alert=None, extras=None):
+        self.alert = alert
+        self.extras = extras
 
 
-def _send(message, app=None):
-    _sent.append((message, app))
-    return "msg-id"
+class _DummyMessage:
+    def __init__(self, msg_content="", extras=None):
+        self.msg_content = msg_content
+        self.extras = extras
 
 
-_firebase_admin.get_app = _get_app
-_firebase_admin.initialize_app = _initialize_app
-_credentials.Certificate = _certificate
-_messaging.Notification = _Notification
-_messaging.Message = _Message
-_messaging.send = _send
+class _Unauthorized(Exception):
+    pass
 
-sys.modules["firebase_admin"] = _firebase_admin
-sys.modules["firebase_admin.credentials"] = _credentials
-sys.modules["firebase_admin.messaging"] = _messaging
+
+class _APIConnectionException(Exception):
+    pass
+
+
+class _JPushFailure(Exception):
+    pass
+
+
+_jpush.JPush = _DummyClient
+_jpush.all_ = object()
+_jpush.notification = (
+    lambda alert=None, android=None, ios=None: _DummyNotification(
+        alert=alert, android=android, ios=ios
+    )
+)
+_jpush.android = (
+    lambda alert=None, title=None, extras=None: _DummyAndroid(
+        alert=alert, title=title, extras=extras
+    )
+)
+_jpush.ios = lambda alert=None, extras=None: _DummyIOS(alert=alert, extras=extras)
+_jpush.message = (
+    lambda msg_content="", extras=None: _DummyMessage(
+        msg_content=msg_content, extras=extras
+    )
+)
+
+_common.Unauthorized = _Unauthorized
+_common.APIConnectionException = _APIConnectionException
+_common.JPushFailure = _JPushFailure
+
+sys.modules["jpush"] = _jpush
+sys.modules["jpush.common"] = _common
 
 from backend.Sql.FCMClient import FCMClient
 
 
 class FCMClientTests(unittest.TestCase):
     def setUp(self):
-        global _app, _sent
-        _app = None
+        global _sent
         _sent = []
 
     def test_send_topic_with_data(self):
@@ -87,21 +115,25 @@ class FCMClientTests(unittest.TestCase):
 
         self.assertEqual(resp, "msg-id")
         self.assertEqual(len(_sent), 1)
-        message, app = _sent[0]
-        self.assertEqual(message.topic, "sync")
-        self.assertEqual(message.data, {"type": "sync"})
-        self.assertIsNotNone(app)
+        push = _sent[0]
+        self.assertIsNone(push.notification)
+        self.assertIsNotNone(push.message)
+        self.assertEqual(push.message.extras, {"type": "sync"})
+        self.assertIs(push.audience, _jpush.all_)
+        self.assertIs(push.platform, _jpush.all_)
 
     def test_send_topic_with_notification(self):
         client = FCMClient()
         client.send_topic("news", title="t", body="b")
 
-        message, _ = _sent[0]
-        self.assertEqual(message.notification.title, "t")
-        self.assertEqual(message.notification.body, "b")
+        push = _sent[0]
+        self.assertIsNotNone(push.notification)
+        self.assertEqual(push.notification.alert, "b")
+        self.assertIs(push.audience, _jpush.all_)
+        self.assertIs(push.platform, _jpush.all_)
 
 
 if __name__ == "__main__":
-   client = FCMClient()
-   resp = client.send_topic("news", title="t", body="b")
-   print(resp)
+    client = FCMClient()
+    resp = client.send_topic("news", title="t", body="b")
+    print(resp)

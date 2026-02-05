@@ -106,6 +106,11 @@ class SyncIdsWithUserRequest(BaseModel):
     ids: List[UUID]
 
 
+class SyncIdsWithOptionalUserRequest(BaseModel):
+    user_id: Optional[UUID] = None
+    ids: List[UUID]
+
+
 class FollowRequest(BaseModel):
     user_id: UUID
     follow_id: UUID

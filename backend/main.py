@@ -5,6 +5,10 @@ _root = Path(__file__).resolve().parents[1]
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
+import asyncio
+import os
+from contextlib import asynccontextmanager
+import logging
 import uvicorn
 from fastapi import FastAPI
 
@@ -19,8 +23,61 @@ from backend.api.NotificationApi import notification_router
 from backend.api.SyncApi import sync_router
 from backend.api.FollowApi import follow_router
 from backend.api.ReportApi import report_router
+from backend.service.ChangeLogNotifier import ChangeLogNotifier
+from backend.Sql.FCMClient import FCMClient
+from backend.Sql.SClient import SupabaseClient
+from common.env import load_env
 
-app = FastAPI(title="智汇社区 AI 后端")
+_logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    load_env()
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:
+        logging.basicConfig(
+            level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+            format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        )
+    enabled = os.environ.get("CHANGE_LOG_NOTIFIER_ENABLED", "true").lower() in ("1", "true", "yes")
+    notifier = None
+    task = None
+    if enabled:
+        try:
+            notifier = ChangeLogNotifier(
+                SupabaseClient(),
+                FCMClient(),
+                topic=os.environ.get("CHANGE_LOG_NOTIFIER_TOPIC", "sync"),
+                poll_interval=float(os.environ.get("CHANGE_LOG_NOTIFIER_POLL_INTERVAL", "1.0")),
+                batch_size=int(os.environ.get("CHANGE_LOG_NOTIFIER_BATCH_SIZE", "200")),
+                start_from_latest=os.environ.get("CHANGE_LOG_NOTIFIER_START_FROM_LATEST", "true").lower() in ("1", "true", "yes"),
+            )
+            app.state.change_log_notifier = notifier
+            task = asyncio.create_task(notifier.run())
+            app.state.change_log_notifier_task = task
+            _logger.info("change_log notifier started")
+        except Exception:
+            # If Supabase/FCM is not configured, skip starting the notifier.
+            notifier = None
+            task = None
+            _logger.exception("change_log notifier failed to start")
+    else:
+        _logger.info("change_log notifier disabled")
+
+    try:
+        yield
+    finally:
+        if notifier:
+            notifier.stop()
+        if task:
+            task.cancel()
+        if notifier or task:
+            _logger.info("change_log notifier stopped")
+
+
+app = FastAPI(title="Forum AI Backend", lifespan=lifespan)
+
 
 # 挂载路由
 app.include_router(word_router)

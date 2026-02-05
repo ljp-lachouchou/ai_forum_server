@@ -4,7 +4,11 @@ from fastapi import APIRouter, Depends
 
 from backend.api.ApiResponse import ApiResponse as AR
 from backend.api.services import get_sync_service
-from backend.entity.schemas import SyncIdsRequest, SyncIdsWithUserRequest
+from backend.entity.schemas import (
+    SyncIdsRequest,
+    SyncIdsWithUserRequest,
+    SyncIdsWithOptionalUserRequest,
+)
 from backend.service.SyncService import SyncService
 
 sync_router = APIRouter(prefix="/api/v1/sync", tags=["Sync"])
@@ -59,6 +63,18 @@ async def sync_treeholes(
         return AR.error(msg=str(e))
 
 
+@sync_router.post("/profiles", response_model=AR)
+async def sync_profiles(
+    payload: SyncIdsRequest,
+    service: SyncService = Depends(get_sync_service),
+):
+    try:
+        data = await service.get_profiles(payload.ids)
+        return AR.success(data)
+    except Exception as e:
+        return AR.error(msg=str(e))
+
+
 @sync_router.post("/notifications", response_model=AR)
 async def sync_notifications(
     payload: SyncIdsWithUserRequest,
@@ -73,11 +89,11 @@ async def sync_notifications(
 
 @sync_router.post("/likes", response_model=AR)
 async def sync_likes(
-    payload: SyncIdsWithUserRequest,
+    payload: SyncIdsWithOptionalUserRequest,
     service: SyncService = Depends(get_sync_service),
 ):
     try:
-        data = await service.get_likes(payload.user_id, payload.ids)
+        data = await service.get_likes(payload.ids, payload.user_id)
         return AR.success(data)
     except Exception as e:
         return AR.error(msg=str(e))
@@ -85,11 +101,23 @@ async def sync_likes(
 
 @sync_router.post("/bookmarks", response_model=AR)
 async def sync_bookmarks(
-    payload: SyncIdsWithUserRequest,
+    payload: SyncIdsWithOptionalUserRequest,
     service: SyncService = Depends(get_sync_service),
 ):
     try:
-        data = await service.get_bookmarks(payload.user_id, payload.ids)
+        data = await service.get_bookmarks(payload.ids, payload.user_id)
+        return AR.success(data)
+    except Exception as e:
+        return AR.error(msg=str(e))
+
+
+@sync_router.post("/follows", response_model=AR)
+async def sync_follows(
+    payload: SyncIdsWithOptionalUserRequest,
+    service: SyncService = Depends(get_sync_service),
+):
+    try:
+        data = await service.get_follows(payload.ids, payload.user_id)
         return AR.success(data)
     except Exception as e:
         return AR.error(msg=str(e))

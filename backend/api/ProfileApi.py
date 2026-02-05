@@ -29,7 +29,11 @@ async def get_profile(pamaras: GetProfileRequest = Depends(),
 async def update_profile(payload:ProfileUpdate,
                          profile_service:ProfileService = Depends(get_profile_service)):
     try:
-        data = await profile_service.update_profile(payload.id,payload.model_dump(mode='json'))
+        update_data = payload.model_dump(mode="json", exclude_none=True)
+        update_data.pop("id", None)
+        if not update_data:
+            return AR.success(msg="no fields to update")
+        data = await profile_service.update_profile(payload.id, update_data)
     except Exception as e:
         return AR.error(msg=f"[系统错误] 更新个人信息: {e}")
     return AR.success(data)

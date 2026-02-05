@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 from uuid import UUID
 
 from backend.Sql.SClient import SupabaseClient
@@ -67,6 +67,18 @@ class SyncService:
         )
         return res.data or []
 
+    async def get_profiles(self, ids: List[UUID]) -> List[dict]:
+        if not ids:
+            return []
+        res = (
+            self.sb._client
+            .table("profiles")
+            .select("*")
+            .in_("id", [str(i) for i in ids])
+            .execute()
+        )
+        return res.data or []
+
     async def get_notifications(self, user_id: UUID, ids: List[UUID]) -> List[dict]:
         if not ids:
             return []
@@ -80,28 +92,44 @@ class SyncService:
         )
         return res.data or []
 
-    async def get_likes(self, user_id: UUID, ids: List[UUID]) -> List[dict]:
+    async def get_likes(self, ids: List[UUID], user_id: Optional[UUID] = None) -> List[dict]:
         if not ids:
             return []
-        res = (
+        query = (
             self.sb._client
             .table("likes")
             .select("*")
-            .eq("user_id", str(user_id))
-            .in_("post_id", [str(i) for i in ids])
-            .execute()
+            .in_("id", [str(i) for i in ids])
         )
+        if user_id:
+            query = query.eq("user_id", str(user_id))
+        res = query.execute()
         return res.data or []
 
-    async def get_bookmarks(self, user_id: UUID, ids: List[UUID]) -> List[dict]:
+    async def get_bookmarks(self, ids: List[UUID], user_id: Optional[UUID] = None) -> List[dict]:
         if not ids:
             return []
-        res = (
+        query = (
             self.sb._client
             .table("bookmarks")
             .select("*")
-            .eq("user_id", str(user_id))
-            .in_("post_id", [str(i) for i in ids])
-            .execute()
+            .in_("id", [str(i) for i in ids])
         )
+        if user_id:
+            query = query.eq("user_id", str(user_id))
+        res = query.execute()
+        return res.data or []
+
+    async def get_follows(self, ids: List[UUID], user_id: Optional[UUID] = None) -> List[dict]:
+        if not ids:
+            return []
+        query = (
+            self.sb._client
+            .table("follows")
+            .select("*")
+            .in_("id", [str(i) for i in ids])
+        )
+        if user_id:
+            query = query.eq("user_id", str(user_id))
+        res = query.execute()
         return res.data or []

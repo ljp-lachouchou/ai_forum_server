@@ -13,7 +13,13 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"email":"user@example.com","password":"secret123"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"access_token":"xxxx","email":"81005762@qq.com","user_id":"b024f8bf-a96c-4d5a-a8d6-a033e5720c93"}}
+  ```kotlin
+  data class LoginResponse(
+      val accessToken: String,
+      val email: String,
+      val userId: String
+  )
+  ```
 
 ### POST /api/v1/register
 - Path params: none
@@ -24,7 +30,13 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"email":"user@example.com","password":"secret123"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"access_token":"xxxx","email":"81005762@qq.com","user_id":"b024f8bf-a96c-4d5a-a8d6-a033e5720c93"}}
+  ```kotlin
+  data class RegisterResponse(
+      val userId: String,
+      val email: String,
+      val accessToken: String?
+  )
+  ```
 
 ## Profile
 
@@ -35,7 +47,16 @@ Base URL: http://127.0.0.1:8000
 - Example (success):
   - URL: /api/v1/profile/get_profile?id=37ed0792-5e07-449a-bf68-2e6252bcad7d
 - Success response example:
-  {"code":200,"msg":"success","data":{"id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","email":"81005762@qq.com","username":"alice","avatar_url":"https://example.com/avatar.png","bio":"hello"}}
+  ```kotlin
+  data class ProfileResponse(
+      val username: String?,
+      val avatarUrl: String?,
+      val bio: String?,
+      val role: String,
+      val createdAt: String,
+      val profileAccount: String?
+  )
+  ```
 
 ### PUT /api/v1/profile/update_profile
 - Path params: none
@@ -46,7 +67,16 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","username":"alice","bio":"hello"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","username":"alice","avatar_url":"https://example.com/avatar.png","bio":"hello"}}
+  ```kotlin
+  data class ProfileResponse(
+      val username: String?,
+      val avatarUrl: String?,
+      val bio: String?,
+      val role: String,
+      val createdAt: String,
+      val profileAccount: String?
+  )
+  ```
 
 ## Persona
 
@@ -59,7 +89,15 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","category":"AI??","tags":["AI","RAG"],"duration":12}
 - Success response example:
-  {"code":200,"msg":"success","data":{"user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","category":"AI??","tags":["AI","RAG"],"duration":12,"updated_at":1700000000}}
+  ```kotlin
+  data class PersonaUpdateStatsResponse(
+      val userId: String,
+      val category: String,
+      val tags: List<String>,
+      val duration: Int,
+      val updatedAt: Long
+  )
+  ```
 
 ### POST /api/v1/persona/update_available
 - Path params: none
@@ -70,7 +108,12 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"id":"37ed0792-5e07-449a-bf68-2e6252bcad7d"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","available":true}}
+  ```kotlin
+  data class PersonaUpdateAvailableResponse(
+      val id: String,
+      val available: Boolean
+  )
+  ```
 
 ## Words
 
@@ -83,7 +126,24 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"author_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","word_url":"https://example.com/doc","category":"AI??","tags":[{"id":"ai","display_content":"AI","create_time":0}],"word_name":"AI intro"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"word_id":"11111111-1111-1111-1111-111111111111","author_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","word_url":"https://example.com/doc","category":"AI??","tags":[{"id":"ai","display_content":"AI","create_time":0}],"word_name":"AI intro","status":"draft","created_at":1700000000}}
+  ```kotlin
+  data class Tag(
+      val id: String,
+      val displayContent: String,
+      val createTime: Long
+  )
+  
+  data class WordCreateResponse(
+      val wordId: String,
+      val authorId: String,
+      val wordUrl: String,
+      val category: String,
+      val tags: List<Tag>,
+      val wordName: String?,
+      val status: String,
+      val createdAt: Long
+  )
+  ```
 
 ### PUT /api/v1/words/{id}
 - Path params: `id` (string, uuid)
@@ -94,7 +154,7 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"word_name":"New title"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"word_id":"11111111-1111-1111-1111-111111111111","updated_fields":{"word_name":"New title"},"updated_at":1700000100}}
+  null
 
 ### POST /api/v1/words/{id}/submit
 - Path params: `id` (string, uuid)
@@ -103,7 +163,7 @@ Base URL: http://127.0.0.1:8000
 - Example (success):
   - URL: /api/v1/words/11111111-1111-1111-1111-111111111111/submit?author_id=37ed0792-5e07-449a-bf68-2e6252bcad7d
 - Success response example:
-  {"code":200,"msg":"success","data":{"id":"11111111-1111-1111-1111-111111111111","status":"submitted"}}
+  null
 
 ### POST /api/v1/words/{id}/publish
 - Path params: `id` (string, uuid)
@@ -112,7 +172,7 @@ Base URL: http://127.0.0.1:8000
 - Example (success):
   - URL: /api/v1/words/11111111-1111-1111-1111-111111111111/publish?admin_id=37ed0792-5e07-449a-bf68-2e6252bcad7d
 - Success response example:
-  {"code":200,"msg":"success","data":{"id":"11111111-1111-1111-1111-111111111111","status":"published"}}
+  null
 
 ### POST /api/v1/words/{id}/reject
 - Path params: `id` (string, uuid)
@@ -121,7 +181,7 @@ Base URL: http://127.0.0.1:8000
 - Example (success):
   - URL: /api/v1/words/11111111-1111-1111-1111-111111111111/reject?admin_id=37ed0792-5e07-449a-bf68-2e6252bcad7d&reson=manual
 - Success response example:
-  {"code":200,"msg":"success","data":{"id":"11111111-1111-1111-1111-111111111111","status":"rejected","reason":"manual"}}
+  null
 
 ### POST /api/v1/words/{id}/archive
 - Path params: `id` (string, uuid)
@@ -132,7 +192,7 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"admin_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"id":"11111111-1111-1111-1111-111111111111","status":"archived"}}
+  null
 
 ### DELETE /api/v1/words/{id}
 - Path params: `id` (string, uuid)
@@ -141,7 +201,7 @@ Base URL: http://127.0.0.1:8000
 - Example (success):
   - URL: /api/v1/words/11111111-1111-1111-1111-111111111111
 - Success response example:
-  {"code":200,"msg":"success","data":{"id":"11111111-1111-1111-1111-111111111111","deleted":true}}
+  null
 
 ### GET /api/v1/words/{id}
 - Path params: `id` (string, uuid)
@@ -150,7 +210,18 @@ Base URL: http://127.0.0.1:8000
 - Example (success):
   - URL: /api/v1/words/11111111-1111-1111-1111-111111111111
 - Success response example:
-  {"code":200,"msg":"success","data":{"word_id":"11111111-1111-1111-1111-111111111111","author_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","word_url":"https://example.com/doc","category":"AI??","tags":[{"id":"ai","display_content":"AI","create_time":0}],"word_name":"AI intro","status":"published","created_at":1700000000}}
+  ```kotlin
+  data class WordDetailResponse(
+      val wordId: String,
+      val authorId: String,
+      val wordUrl: String,
+      val category: String,
+      val tags: List<Tag>,
+      val wordName: String?,
+      val status: String,
+      val createdAt: Long
+  )
+  ```
 
 ### GET /api/v1/words/{id}/events
 - Path params: `id` (string, uuid)
@@ -159,7 +230,17 @@ Base URL: http://127.0.0.1:8000
 - Example (success):
   - URL: /api/v1/words/11111111-1111-1111-1111-111111111111/events
 - Success response example:
-  {"code":200,"msg":"success","data":[{"id":"e1","type":"publish","actor_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","created_at":1700000200}]}
+  ```kotlin
+  data class WordEvent(
+      val id: String,
+      val type: String,
+      val actorId: String,
+      val createdAt: Long
+  )
+  
+  // data: List<WordEvent>
+  ```
+
 
 ### GET /api/v1/words/feeds
 - Path params: none
@@ -168,7 +249,18 @@ Base URL: http://127.0.0.1:8000
 - Example (success):
   - URL: /api/v1/words/feeds?mode=latest&limit=20
 - Success response example:
-  {"code":200,"msg":"success","data":[{"word_id":"11111111-1111-1111-1111-111111111111","word_name":"AI intro","category":"AI??","author_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","created_at":1700000000}]}
+  ```kotlin
+  data class WordFeedItem(
+      val wordId: String,
+      val wordName: String,
+      val category: String,
+      val authorId: String,
+      val createdAt: Long
+  )
+  
+  // data: List<WordFeedItem>
+  ```
+
 
 ## AI
 
@@ -181,7 +273,18 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"u_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","query":"vector search"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"results":[{"word_id":"11111111-1111-1111-1111-111111111111","word_name":"AI intro","score":0.92}]}}
+  ```kotlin
+  data class SearchResult(
+      val wordId: String,
+      val wordName: String,
+      val score: Double
+  )
+  
+  data class AISearchResponse(
+      val results: List<SearchResult>
+  )
+  ```
+
 
 ### POST /api/v1/ai/review
 - Path params: none
@@ -190,7 +293,7 @@ Base URL: http://127.0.0.1:8000
 - Example (success):
   - URL: /api/v1/ai/review?id=11111111-1111-1111-1111-111111111111
 - Success response example:
-  {"code":200,"msg":"success","data":{"id":"11111111-1111-1111-1111-111111111111","reviewed":true}}
+  null
 
 ### POST /api/v1/ai/assist/post
 - Path params: none
@@ -201,7 +304,12 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"content":"A short post about IntelliJ and Continue."}
 - Success response example:
-  {"code":200,"msg":"success","data":{"content":"A short post about IntelliJ and Continue.","suggestions":["Add a hook","Include a CTA"]}}
+  ```kotlin
+  data class AIAssistPostResponse(
+      val content: String,
+      val suggestions: List<String>
+  )
+  ```
 
 ## Comments
 
@@ -214,7 +322,15 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"author_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","content":"Nice post"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"comment_id":"22222222-2222-2222-2222-222222222222","post_id":"11111111-1111-1111-1111-111111111111","author_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","content":"Nice post","created_at":1700000300}}
+  ```kotlin
+  data class CommentCreateResponse(
+      val commentId: String,
+      val postId: String,
+      val authorId: String,
+      val content: String,
+      val createdAt: Long
+  )
+  ```
 
 ### GET /api/v1/posts/{post_id}/comments
 - Path params: `post_id` (string, uuid)
@@ -223,7 +339,18 @@ Base URL: http://127.0.0.1:8000
 - Example (success):
   - URL: /api/v1/posts/11111111-1111-1111-1111-111111111111/comments
 - Success response example:
-  {"code":200,"msg":"success","data":[{"comment_id":"22222222-2222-2222-2222-222222222222","post_id":"11111111-1111-1111-1111-111111111111","author_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","content":"Nice post","created_at":1700000300}]}
+  ```kotlin
+  data class CommentItem(
+      val commentId: String,
+      val postId: String,
+      val authorId: String,
+      val content: String,
+      val createdAt: Long
+  )
+  
+  // data: List<CommentItem>
+  ```
+
 
 ### DELETE /api/v1/comments/{comment_id}
 - Path params: `comment_id` (string, uuid)
@@ -234,7 +361,7 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"author_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"comment_id":"22222222-2222-2222-2222-222222222222","deleted":true}}
+  null
 
 ### GET /api/v1/posts/{post_id}/comments/summary
 - Path params: `post_id` (string, uuid)
@@ -243,7 +370,13 @@ Base URL: http://127.0.0.1:8000
 - Example (success):
   - URL: /api/v1/posts/11111111-1111-1111-1111-111111111111/comments/summary
 - Success response example:
-  {"code":200,"msg":"success","data":{"post_id":"11111111-1111-1111-1111-111111111111","count":3,"latest_comment_id":"22222222-2222-2222-2222-222222222222"}}
+  ```kotlin
+  data class CommentSummaryResponse(
+      val postId: String,
+      val count: Int,
+      val latestCommentId: String
+  )
+  ```
 
 ## Interactions
 
@@ -256,7 +389,13 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"post_id":"11111111-1111-1111-1111-111111111111","user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","liked":true}}
+  ```kotlin
+  data class LikeResponse(
+      val postId: String,
+      val userId: String,
+      val liked: Boolean
+  )
+  ```
 
 ### POST /api/v1/posts/{post_id}/collect
 - Path params: `post_id` (string, uuid)
@@ -267,7 +406,13 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"post_id":"11111111-1111-1111-1111-111111111111","user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","collected":true}}
+  ```kotlin
+  data class CollectResponse(
+      val postId: String,
+      val userId: String,
+      val collected: Boolean
+  )
+  ```
 
 ### GET /api/v1/user/likes
 - Path params: none
@@ -276,7 +421,15 @@ Base URL: http://127.0.0.1:8000
 - Example (success):
   - URL: /api/v1/user/likes?user_id=37ed0792-5e07-449a-bf68-2e6252bcad7d
 - Success response example:
-  {"code":200,"msg":"success","data":[{"post_id":"11111111-1111-1111-1111-111111111111","liked_at":1700000400}]}
+  ```kotlin
+  data class UserLikeItem(
+      val postId: String,
+      val likedAt: Long
+  )
+  
+  // data: List<UserLikeItem>
+  ```
+
 
 ## Treehole
 
@@ -289,7 +442,15 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"author_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","content":"hello","is_anonymous":false}
 - Success response example:
-  {"code":200,"msg":"success","data":{"id":"33333333-3333-3333-3333-333333333333","author_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","content":"hello","is_anonymous":false,"created_at":1700000500}}
+  ```kotlin
+  data class TreeholeCreateResponse(
+      val id: String,
+      val authorId: String,
+      val content: String,
+      val isAnonymous: Boolean,
+      val createdAt: Long
+  )
+  ```
 
 ### GET /api/v1/treehole/stream
 - Path params: none
@@ -298,7 +459,18 @@ Base URL: http://127.0.0.1:8000
 - Example (success):
   - URL: /api/v1/treehole/stream?limit=20&offset=0&include_ai=false
 - Success response example:
-  {"code":200,"msg":"success","data":[{"id":"33333333-3333-3333-3333-333333333333","author_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","content":"hello","is_anonymous":false,"created_at":1700000500}]}
+  ```kotlin
+  data class TreeholeItem(
+      val id: String,
+      val authorId: String,
+      val content: String,
+      val isAnonymous: Boolean,
+      val createdAt: Long
+  )
+  
+  // data: List<TreeholeItem>
+  ```
+
 
 ### POST /api/v1/treehole/{treehole_id}/ai_reply
 - Path params: `treehole_id` (string, uuid)
@@ -309,7 +481,14 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"content":"AI reply"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"reply_id":"44444444-4444-4444-4444-444444444444","treehole_id":"11111111-1111-1111-1111-111111111111","content":"AI reply","created_at":1700000600}}
+  ```kotlin
+  data class TreeholeAiReplyResponse(
+      val replyId: String,
+      val treeholeId: String,
+      val content: String,
+      val createdAt: Long
+  )
+  ```
 
 ## Notifications
 
@@ -322,7 +501,16 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","type":"system","content":"hello"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"id":"55555555-5555-5555-5555-555555555555","user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","type":"system","content":"hello","is_read":false,"created_at":1700000700}}
+  ```kotlin
+  data class NotificationCreateResponse(
+      val id: String,
+      val userId: String,
+      val type: String,
+      val content: String,
+      val isRead: Boolean,
+      val createdAt: Long
+  )
+  ```
 
 ### GET /api/v1/notifications
 - Path params: none
@@ -331,7 +519,19 @@ Base URL: http://127.0.0.1:8000
 - Example (success):
   - URL: /api/v1/notifications?user_id=37ed0792-5e07-449a-bf68-2e6252bcad7d&unread_only=false&limit=20
 - Success response example:
-  {"code":200,"msg":"success","data":[{"id":"55555555-5555-5555-5555-555555555555","user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","type":"system","content":"hello","is_read":false,"created_at":1700000700}]}
+  ```kotlin
+  data class NotificationItem(
+      val id: String,
+      val userId: String,
+      val type: String,
+      val content: String,
+      val isRead: Boolean,
+      val createdAt: Long
+  )
+  
+  // data: List<NotificationItem>
+  ```
+
 
 ### POST /api/v1/notifications/read
 - Path params: none
@@ -342,7 +542,12 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","notification_ids":["11111111-1111-1111-1111-111111111111"]}
 - Success response example:
-  {"code":200,"msg":"success","data":{"updated_count":1,"notification_ids":["11111111-1111-1111-1111-111111111111"]}}
+  ```kotlin
+  data class NotificationReadResponse(
+      val updatedCount: Int,
+      val notificationIds: List<String>
+  )
+  ```
 
 ### POST /api/v1/notifications/read_all
 - Path params: none
@@ -353,7 +558,11 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"updated_count":5}}
+  ```kotlin
+  data class NotificationReadAllResponse(
+      val updatedCount: Int
+  )
+  ```
 
 ## Follows
 
@@ -366,7 +575,13 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","follow_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","follow_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","following":true}}
+  ```kotlin
+  data class FollowCreateResponse(
+      val userId: String,
+      val followId: String,
+      val following: Boolean
+  )
+  ```
 
 ### DELETE /api/v1/follows
 - Path params: none
@@ -377,7 +592,7 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","follow_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","follow_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","following":false}}
+  null
 
 ### GET /api/v1/follows
 - Path params: none
@@ -386,7 +601,16 @@ Base URL: http://127.0.0.1:8000
 - Example (success):
   - URL: /api/v1/follows?user_id=37ed0792-5e07-449a-bf68-2e6252bcad7d
 - Success response example:
-  {"code":200,"msg":"success","data":[{"user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","follow_id":"88888888-8888-8888-8888-888888888888","created_at":1700000800}]}
+  ```kotlin
+  data class FollowItem(
+      val userId: String,
+      val followId: String,
+      val createdAt: Long
+  )
+  
+  // data: List<FollowItem>
+  ```
+
 
 ## Reports
 
@@ -399,7 +623,12 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"reporter_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","target_type":"word","target_id":"11111111-1111-1111-1111-111111111111","reason":"spam"}
 - Success response example:
-  {"code":200,"msg":"success","data":{"report_id":"66666666-6666-6666-6666-666666666666","status":"received"}}
+  ```kotlin
+  data class ReportCreateResponse(
+      val reportId: String,
+      val status: String
+  )
+  ```
 
 ## Sync
 
@@ -410,7 +639,17 @@ Base URL: http://127.0.0.1:8000
 - Example (success):
   - URL: /api/v1/sync/changelog?since=0&limit=100
 - Success response example:
-  {"code":200,"msg":"success","data":[{"id":"77777777-7777-7777-7777-777777777777","type":"word","op":"update","updated_at":1700000900}]}
+  ```kotlin
+  data class ChangelogItem(
+      val id: String,
+      val type: String,
+      val op: String,
+      val updatedAt: Long
+  )
+  
+  // data: List<ChangelogItem>
+  ```
+
 
 ### POST /api/v1/sync/words
 - Path params: none
@@ -421,7 +660,17 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"ids":["11111111-1111-1111-1111-111111111111"]}
 - Success response example:
-  {"code":200,"msg":"success","data":[{"word_id":"11111111-1111-1111-1111-111111111111","word_name":"AI intro","category":"AI??","updated_at":1700000900}]}
+  ```kotlin
+  data class SyncWordItem(
+      val wordId: String,
+      val wordName: String,
+      val category: String,
+      val updatedAt: Long
+  )
+  
+  // data: List<SyncWordItem>
+  ```
+
 
 ### POST /api/v1/sync/comments
 - Path params: none
@@ -432,7 +681,17 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"ids":["11111111-1111-1111-1111-111111111111"]}
 - Success response example:
-  {"code":200,"msg":"success","data":[{"comment_id":"22222222-2222-2222-2222-222222222222","post_id":"11111111-1111-1111-1111-111111111111","content":"Nice post","updated_at":1700000900}]}
+  ```kotlin
+  data class SyncCommentItem(
+      val commentId: String,
+      val postId: String,
+      val content: String,
+      val updatedAt: Long
+  )
+  
+  // data: List<SyncCommentItem>
+  ```
+
 
 ### POST /api/v1/sync/treeholes
 - Path params: none
@@ -443,7 +702,16 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"ids":["11111111-1111-1111-1111-111111111111"]}
 - Success response example:
-  {"code":200,"msg":"success","data":[{"id":"33333333-3333-3333-3333-333333333333","content":"hello","updated_at":1700000900}]}
+  ```kotlin
+  data class SyncTreeholeItem(
+      val id: String,
+      val content: String,
+      val updatedAt: Long
+  )
+  
+  // data: List<SyncTreeholeItem>
+  ```
+
 
 ### POST /api/v1/sync/notifications
 - Path params: none
@@ -454,7 +722,17 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","ids":["11111111-1111-1111-1111-111111111111"]}
 - Success response example:
-  {"code":200,"msg":"success","data":[{"id":"55555555-5555-5555-5555-555555555555","type":"system","content":"hello","updated_at":1700000900}]}
+  ```kotlin
+  data class SyncNotificationItem(
+      val id: String,
+      val type: String,
+      val content: String,
+      val updatedAt: Long
+  )
+  
+  // data: List<SyncNotificationItem>
+  ```
+
 
 ### POST /api/v1/sync/likes
 - Path params: none
@@ -465,7 +743,16 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","ids":["11111111-1111-1111-1111-111111111111"]}
 - Success response example:
-  {"code":200,"msg":"success","data":[{"post_id":"11111111-1111-1111-1111-111111111111","liked":true,"updated_at":1700000900}]}
+  ```kotlin
+  data class SyncLikeItem(
+      val postId: String,
+      val liked: Boolean,
+      val updatedAt: Long
+  )
+  
+  // data: List<SyncLikeItem>
+  ```
+
 
 ### POST /api/v1/sync/bookmarks
 - Path params: none
@@ -476,4 +763,13 @@ Base URL: http://127.0.0.1:8000
   - Body:
     {"user_id":"37ed0792-5e07-449a-bf68-2e6252bcad7d","ids":["11111111-1111-1111-1111-111111111111"]}
 - Success response example:
-  {"code":200,"msg":"success","data":[{"post_id":"11111111-1111-1111-1111-111111111111","bookmarked":true,"updated_at":1700000900}]}
+  ```kotlin
+  data class SyncBookmarkItem(
+      val postId: String,
+      val bookmarked: Boolean,
+      val updatedAt: Long
+  )
+  
+  // data: List<SyncBookmarkItem>
+  ```
+
