@@ -15,6 +15,7 @@ class NotificationService:
         content: str,
         ref_type: Optional[str] = None,
         ref_id: Optional[UUID] = None,
+        token: str = None,
     ):
         payload = {
             "user_id": str(user_id),
@@ -26,16 +27,18 @@ class NotificationService:
             payload["ref_type"] = ref_type
         if ref_id:
             payload["ref_id"] = str(ref_id)
-        return await self.sb.insert_async("notifications", payload)
+        return await self.sb.insert_async("notifications", payload, token=token)
 
     async def list_notifications(
         self,
         user_id: UUID,
         unread_only: bool = False,
         limit: int = 20,
+        token: str = None,
     ) -> List[dict]:
+        client = self.sb.get_auth_client(token)
         query = (
-            self.sb._client
+            client
             .table("notifications")
             .select("*")
             .eq("user_id", str(user_id))
@@ -47,11 +50,12 @@ class NotificationService:
         res = query.execute()
         return res.data or []
 
-    async def mark_read(self, user_id: UUID, notification_ids: List[UUID]) -> List[dict]:
+    async def mark_read(self, user_id: UUID, notification_ids: List[UUID], token: str = None) -> List[dict]:
         if not notification_ids:
             return []
+        client = self.sb.get_auth_client(token)
         res = (
-            self.sb._client
+            client
             .table("notifications")
             .update({"is_read": True})
             .eq("user_id", str(user_id))
@@ -60,9 +64,10 @@ class NotificationService:
         )
         return res.data or []
 
-    async def mark_all_read(self, user_id: UUID) -> List[dict]:
+    async def mark_all_read(self, user_id: UUID, token: str = None) -> List[dict]:
+        client = self.sb.get_auth_client(token)
         res = (
-            self.sb._client
+            client
             .table("notifications")
             .update({"is_read": True})
             .eq("user_id", str(user_id))

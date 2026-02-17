@@ -143,11 +143,12 @@ CREATE POLICY "Users can view own persona" ON public.user_personas
 ### sql
 ```sql
 create table public.treeholes (
-  id uuid not null default gen_random_uuid (),
-  author_id uuid null,
-  content text not null,
-  is_anonymous boolean not null default true,
-  created_at timestamp with time zone null default now(),
+    id uuid not null default gen_random_uuid (),
+    author_id uuid null,
+    content text not null,
+    is_anonymous boolean not null default true,
+    mood text not null default '平常'::text,
+    created_at timestamp with time zone null default now(),
   constraint treeholes_pkey primary key (id),
   constraint treeholes_author_id_fkey foreign KEY (author_id) references profiles (id) on delete set null
 ) TABLESPACE pg_default;

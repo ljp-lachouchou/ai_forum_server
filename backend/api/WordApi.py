@@ -1,4 +1,5 @@
 import traceback
+import time
 from typing import Optional, Dict, Tuple
 from urllib.parse import urlparse
 from uuid import UUID
@@ -13,6 +14,7 @@ from ai.rag.rag_wrapper import content_mapper
 
 from backend.Sql.enums import WordStatus
 from backend.api.ApiResponse import ApiResponse as AR
+from backend.api.deps import require_auth, is_same_user, AuthContext
 from backend.api.PersonaApi import get_persona_service
 from backend.api.services import (get_word_service, get_rag_query_service,
                                   get_rag_manager, get_rag_summary_service,
@@ -35,15 +37,23 @@ AI_SYSTEM_ADMIN_ID = UUID("00000000-0000-0000-0000-000000000000")
 
 
 @word_router.post("/words", response_model=AR)
-async def create_word(payload: dict, service: WordService = Depends(get_word_service)):
+async def create_word(
+    payload: dict,
+    current_user: AuthContext = Depends(require_auth),
+    service: WordService = Depends(get_word_service),
+):
     """发布新帖 (F04)"""
     try:
+        if "author_id" in payload and not is_same_user(current_user, payload["author_id"]):
+            return AR.error(code=403, msg="not allowed to create word for another user")
+        author_id = current_user.user_id
         data = await service.create_word(
-            author_id=payload["author_id"],
+            author_id=author_id,
             word_url=payload["word_url"],
             category=payload["category"],
             tags=payload.get("tags", []),
-            word_name=payload.get("word_name")
+            word_name=payload.get("word_name"),
+            token=current_user.token,
         )
         return AR.success(data)
     except Exception as e:
@@ -51,12 +61,18 @@ async def create_word(payload: dict, service: WordService = Depends(get_word_ser
 
 
 @word_router.put("/words/{id}", response_model=AR)
-async def update_word(id: UUID, author_id: UUID,
-                      payload: dict,
-                      service: WordService = Depends(get_word_service)):
+async def update_word(
+    id: UUID,
+    author_id: UUID,
+    payload: dict,
+    current_user: AuthContext = Depends(require_auth),
+    service: WordService = Depends(get_word_service),
+):
     """编辑内容 (UPDATE)"""
     try:
-        await service.update_word(id, author_id, payload)
+        if not is_same_user(current_user, author_id):
+            return AR.error(code=403, msg="not allowed to update another user's word")
+        await service.update_word(id, author_id, payload, token=current_user.token)
         return AR.success(msg="更新成功")
     except PermissionError:
         return AR.error(code=403, msg="对不起，你不是作者，没有权限修改")
@@ -68,14 +84,17 @@ async def update_word(id: UUID, author_id: UUID,
 async def submit_review(
     id: UUID,
     author_id: UUID,
+    current_user: AuthContext = Depends(require_auth),
     service: WordService = Depends(get_word_service),
     llm_service: LLMService = Depends(get_llm_service),
     review_service: AIPostReviewService = Depends(get_ai_post_review_service),
 ):
     """Submit for review (F09)."""
-    await service.submit_review(id, author_id)
+    if not is_same_user(current_user, author_id):
+        return AR.error(code=403, msg="not allowed to submit review for another user")
+    await service.submit_review(id, author_id, token=current_user.token)
     try:
-        word = await service.get_word(id)
+        word = await service.get_word(id, token=current_user.token)
         content = (word.get("raw_text") or word.get("word_url") or "").strip()
         content = await _resolve_review_content(content)
         is_safe, reason = await _ai_auto_review(content, llm_service)
@@ -97,34 +116,45 @@ async def submit_review(
 
 
 @word_router.post("/words/{id}/publish", response_model=AR)
-async def publish(id: UUID, admin_id: UUID,
-                  service: WordService = Depends(get_word_service),
-                  rag_manager: RagManager = Depends(get_rag_manager)):
-    """管理员发布"""
-    word_data = await service.get_word(id)
-    author_id = word_data["author_id"]
+async def publish(
+    id: UUID,
+    admin_id: Optional[UUID] = None,
+    current_user: AuthContext = Depends(require_auth),
+    service: WordService = Depends(get_word_service),
+    rag_manager: RagManager = Depends(get_rag_manager),
+):
+    """Author can publish own word."""
+    if admin_id and not is_same_user(current_user, admin_id):
+        return AR.error(code=403, msg="not allowed to publish as another user")
+    word_data = await service.get_word(id, token=current_user.token)
+    if str(word_data.get("author_id")) != current_user.user_id:
+        return AR.error(code=403, msg="not allowed to publish another user's word")
     try:
-        # 推入rag
+        raw_tags = word_data.get('tags') or []
+        word_tags = []
+        for tag in raw_tags:
+            if isinstance(tag, dict):
+                word_tags.append(tag)
+            else:
+                t = str(tag)
+                if t:
+                    word_tags.append({"id": t, "display_content": t, "create_time": int(time.time())})
         word = MDWord(
             id=word_data['word_id'],
             word_name=word_data['word_name'],
             author_id=word_data['author_id'],
             word_url=word_data['word_url'],
-            word_tags=word_data['tags'],
+            word_tags=word_tags,
             likes=0,
             views=0,
             category=word_data['category'],
             is_delete=False,
         )
         await rag_manager.start_process(word_collection_name, word, content_mapper)
-        await service.publish(id, admin_id)
+        await service.publish_by_author(id, UUID(current_user.user_id), token=current_user.token)
     except Exception as e:
-        try:
-            await service.reject(id, admin_id, f"publish failed, returned to author: {str(e)}")
-        except Exception:
-            pass
         return AR.error(msg=str(e))
-    return AR.success(msg="发布成功，已进入 RAG 检索库")
+    return AR.success(msg="publish success")
 
 
 @word_router.post("/words/{id}/reject", response_model=AR)
@@ -132,13 +162,16 @@ async def reject(
         id: UUID,
         admin_id: UUID,
         reson: str,
+        current_user: AuthContext = Depends(require_auth),
         service: WordService = Depends(get_word_service),
         report_service: ReportService = Depends(get_report_service),
 ):
     """拒绝发布"""
     try:
-        await service.reject(id, admin_id, reson)
-        await report_service.create_report(admin_id, "word", id, reson)
+        if not is_same_user(current_user, admin_id):
+            return AR.error(code=403, msg="not allowed to reject as another user")
+        await service.reject(id, admin_id, reson, token=current_user.token)
+        await report_service.create_report(admin_id, "word", id, reson, token=current_user.token)
     except Exception as e:
         return AR.error(msg=str(e))
     return AR.success(msg="文章已被拒绝发布，退回给作者")
@@ -184,10 +217,14 @@ async def get_word_detail(id: UUID, service: WordService = Depends(get_word_serv
 
 
 @word_router.get("/words/{id}/events", response_model=AR)
-async def get_word_events(id: UUID, service: WordService = Depends(get_word_service)):
+async def get_word_events(
+    id: UUID,
+    current_user: AuthContext = Depends(require_auth),
+    service: WordService = Depends(get_word_service),
+):
     """Get word events."""
     try:
-        data = await service.get_events(id)
+        data = await service.get_events(id, token=current_user.token)
         return AR.success(data)
     except Exception as e:
         return AR.error(msg=str(e))
@@ -197,11 +234,14 @@ async def get_word_events(id: UUID, service: WordService = Depends(get_word_serv
 async def archive_word(
         id: UUID,
         admin_id: UUID = Body(..., embed=True),
+        current_user: AuthContext = Depends(require_auth),
         service: WordService = Depends(get_word_service)
 ):
     """归档文章 (ARCHIVE)：从 RAG 检索中屏蔽"""
     try:
-        await service.archive(id, admin_id)
+        if not is_same_user(current_user, admin_id):
+            return AR.error(code=403, msg="not allowed to archive as another user")
+        await service.archive(id, admin_id, token=current_user.token)
         # TODO: 调用 Milvus SDK 根据 word_id 删除或更新索引状态
         return AR.success(msg="文章已归档，已从搜索库中屏蔽")
     except Exception as e:
@@ -209,12 +249,15 @@ async def archive_word(
 
 
 @word_router.delete("/words/{id}", response_model=AR)
-async def delete_word(id: UUID, service: WordService = Depends(get_word_service)):
-    """软删除文章：更新 is_delete=true"""
+async def delete_word(
+    id: UUID,
+    current_user: AuthContext = Depends(require_auth),
+    service: WordService = Depends(get_word_service),
+):
+    """Soft delete by archiving the word."""
     try:
-        # TODO 假设 service 中有对应的软删除逻辑，或者直接调用 update_word
-        await service.sb.update_async("words", {"is_delete": True}, {"word_id": str(id)})
-        return AR.success(msg="文章已成功删除")
+        await service.archive_by_author(id, UUID(current_user.user_id), token=current_user.token)
+        return AR.success(msg="word archived")
     except Exception as e:
         return AR.error(msg=str(e))
 
@@ -241,6 +284,7 @@ async def _whether_llm(
 async def ai_rag_search(
         background_tasks: BackgroundTasks,
         payload: AISearch,
+        current_user: AuthContext = Depends(require_auth),
         service: WordService = Depends(get_word_service),
         rq_service: RagQueryService = Depends(get_rag_query_service),
         persona_service: PersonaService = Depends(get_persona_service),
@@ -249,6 +293,8 @@ async def ai_rag_search(
     """AI 智能搜索 (F06)：触发 RAG 流程"""
     try:
         # 先进行hash命中
+        if not is_same_user(current_user, payload.u_id):
+            return AR.error(code=403, msg="not allowed to search for another user")
         catch_hash_data = await rag_summary_service.hash_cache(payload.query, payload.u_id)
         rs = await _whether_llm(catch_hash_data, service)
         if rs:
@@ -277,13 +323,14 @@ async def ai_rag_search(
 @word_router.post("/ai/review", response_model=AR)
 async def ai_auto_review(
     id: UUID,
+    current_user: AuthContext = Depends(require_auth),
     service: WordService = Depends(get_word_service),
     llm_service: LLMService = Depends(get_llm_service),
     review_service: AIPostReviewService = Depends(get_ai_post_review_service),
 ):
     """AI content review (F09)."""
     try:
-        word = await service.get_word(id)
+        word = await service.get_word(id, token=current_user.token)
         content = (word.get("raw_text") or word.get("word_url") or "").strip()
         content = await _resolve_review_content(content)
         is_safe, reason = await _ai_auto_review(content, llm_service)

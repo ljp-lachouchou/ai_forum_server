@@ -79,17 +79,18 @@ class SyncService:
         )
         return res.data or []
 
-    async def get_notifications(self, user_id: UUID, ids: List[UUID]) -> List[dict]:
+    async def get_notifications(self,  ids: List[UUID],user_id: Optional[UUID] = None,) -> List[dict]:
         if not ids:
             return []
-        res = (
+        query = (
             self.sb._client
             .table("notifications")
             .select("*")
-            .eq("user_id", str(user_id))
             .in_("id", [str(i) for i in ids])
-            .execute()
         )
+        if user_id:
+            query = query.eq("user_id", str(user_id))
+        res = query.execute()
         return res.data or []
 
     async def get_likes(self, ids: List[UUID], user_id: Optional[UUID] = None) -> List[dict]:

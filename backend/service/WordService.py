@@ -27,6 +27,7 @@ class WordService:
             category: str,
             tags: List[str],
             word_name: Optional[str] = None,
+            token: str = None,
     ) -> Dict:
         word = await self.sb.insert_async("words", {
             "author_id": str(author_id),
@@ -35,7 +36,7 @@ class WordService:
             "tags": tags,
             "word_name": word_name,
             "status": WordStatus.DRAFT.value,
-        })
+        }, token=token)
 
         word_id = word[0]["word_id"]
 
@@ -44,6 +45,7 @@ class WordService:
             event_type=WordEventType.CREATE,
             actor_type="user",
             actor_id=author_id,
+            token=token,
         )
 
         return word[0]
@@ -74,8 +76,9 @@ class WordService:
             word_id: UUID,
             author_id: UUID,
             payload: Dict,
+            token: str = None,
     ) -> None:
-        word = await self._get_word_or_raise(word_id)
+        word = await self._get_word_or_raise(word_id, token=token)
 
         if word["author_id"] != str(author_id):
             raise PermissionError("Not the author")
@@ -88,6 +91,7 @@ class WordService:
             "words",
             payload,
             {"word_id": str(word_id)},
+            token=token,
         )
 
         await self._write_event(
@@ -96,10 +100,11 @@ class WordService:
             actor_type="user",
             actor_id=author_id,
             payload={"fields": list(payload.keys())},
+            token=token,
         )
 
-    async def get_word(self, word_id: UUID) -> Dict:
-        return await self._get_word_or_raise(word_id)
+    async def get_word(self, word_id: UUID, token: str = None) -> Dict:
+        return await self._get_word_or_raise(word_id, token=token)
 
     async def list_words(
             self,
@@ -170,22 +175,34 @@ class WordService:
     # 状态流转（核心业务）
     # =========================
 
-    async def submit_review(self, word_id: UUID, author_id: UUID) -> None:
+    async def submit_review(self, word_id: UUID, author_id: UUID, token: str = None) -> None:
         await self._update_status(
             word_id,
             WordStatus.PENDING,
             WordEventType.SUBMIT_REVIEW,
             actor_type="user",
             actor_id=author_id,
+            token=token,
         )
 
-    async def publish(self, word_id: UUID, admin_id: UUID) -> None:
+    async def publish(self, word_id: UUID, admin_id: UUID, token: str = None) -> None:
         await self._update_status(
             word_id,
             WordStatus.PUBLISHED,
             WordEventType.PUBLISH,
             actor_type="admin",
             actor_id=admin_id,
+            token=token,
+        )
+
+    async def publish_by_author(self, word_id: UUID, author_id: UUID, token: str = None) -> None:
+        await self._update_status(
+            word_id,
+            WordStatus.PUBLISHED,
+            WordEventType.PUBLISH,
+            actor_type="user",
+            actor_id=author_id,
+            token=token,
         )
 
     async def reject(
@@ -193,6 +210,7 @@ class WordService:
             word_id: UUID,
             admin_id: UUID,
             reason: str,
+            token: str = None,
     ) -> None:
         await self._update_status(
             word_id,
@@ -201,34 +219,48 @@ class WordService:
             actor_type="admin",
             actor_id=admin_id,
             payload={"reason": reason},
+            token=token,
         )
 
-    async def revise(self, word_id: UUID, author_id: UUID) -> None:
+    async def revise(self, word_id: UUID, author_id: UUID, token: str = None) -> None:
         await self._update_status(
             word_id,
             WordStatus.DRAFT,
             WordEventType.REVISE,
             actor_type="user",
             actor_id=author_id,
+            token=token,
         )
 
-    async def archive(self, word_id: UUID, admin_id: UUID) -> None:
+    async def archive(self, word_id: UUID, admin_id: UUID, token: str = None) -> None:
         await self._update_status(
             word_id,
             WordStatus.ARCHIVED,
             WordEventType.ARCHIVE,
             actor_type="admin",
             actor_id=admin_id,
+            token=token,
+        )
+
+    async def archive_by_author(self, word_id: UUID, author_id: UUID, token: str = None) -> None:
+        await self._update_status(
+            word_id,
+            WordStatus.ARCHIVED,
+            WordEventType.ARCHIVE,
+            actor_type="user",
+            actor_id=author_id,
+            token=token,
         )
 
     # =========================
     # 事件流
     # =========================
 
-    async def get_events(self, word_id: UUID):
+    async def get_events(self, word_id: UUID, token: str = None):
         return await self.sb.select_async(
             "word_events",
             filters={"word_id": str(word_id)},
+            token=token,
         )
 
     async def get_latest_reject_reason(self, word_id: UUID) -> Optional[str]:
@@ -254,11 +286,12 @@ class WordService:
     # 内部工具方法（核心价值）
     # =========================
 
-    async def _get_word_or_raise(self, word_id: UUID) -> Dict:
+    async def _get_word_or_raise(self, word_id: UUID, token: str = None) -> Dict:
         return await self.sb.select_async(
             "words",
             filters={"word_id": str(word_id)},
             single=True,
+            token=token,
         )
 
     async def _update_status(
@@ -269,6 +302,7 @@ class WordService:
             actor_type: str,
             actor_id: UUID,
             payload: Optional[Dict] = None,
+            token: str = None,
     ) -> None:
         """
         所有状态变化唯一入口
@@ -277,6 +311,7 @@ class WordService:
             "words",
             {"status": new_status.value},
             {"word_id": str(word_id)},
+            token=token,
         )
 
         await self._write_event(
@@ -285,6 +320,7 @@ class WordService:
             actor_type=actor_type,
             actor_id=actor_id,
             payload=payload,
+            token=token,
         )
 
     async def _write_event(
@@ -294,8 +330,9 @@ class WordService:
             actor_type: str,
             actor_id: UUID,
             payload: Optional[Dict] = None,
+            token: str = None,
     ) -> None:
-        await self.sb.insert_async("word_events", {
+        await self.sb.insert_service_async("word_events", {
             "word_id": str(word_id),
             "event_type": event_type.value,
             "actor_type": actor_type,

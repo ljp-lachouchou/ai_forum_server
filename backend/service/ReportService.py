@@ -19,8 +19,9 @@ class ReportService:
         target_type: str,
         target_id: UUID,
         reason: str,
+        token: str = None,
     ):
-        return await self.sb.insert_async(
+        return await self.sb.insert_service_async(
             "reports",
             {
                 "reporter_id": str(reporter_id) if reporter_id else None,

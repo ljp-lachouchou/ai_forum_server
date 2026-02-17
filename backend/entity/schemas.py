@@ -82,6 +82,7 @@ class TreeholeCreateRequest(BaseModel):
     author_id: UUID
     content: str
     is_anonymous: bool = True
+    mood: str = "平常"
 
 
 class NotificationCreateRequest(BaseModel):
@@ -121,3 +122,10 @@ class ReportCreateRequest(BaseModel):
     target_type: str
     target_id: UUID
     reason: str
+
+
+class StorageUrlRequest(BaseModel):
+    bucket: str
+    path: str
+    operation: str = "download"
+    expires_in: int = 3600

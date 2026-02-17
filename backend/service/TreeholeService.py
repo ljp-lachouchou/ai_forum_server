@@ -19,6 +19,8 @@ class TreeholeService:
         author_id: UUID,
         content: str,
         is_anonymous: bool = True,
+        mood: str = "平常",
+        token: str = None,
     ):
         return await self.sb.insert_async(
             "treeholes",
@@ -26,7 +28,9 @@ class TreeholeService:
                 "author_id": str(author_id),
                 "content": content,
                 "is_anonymous": is_anonymous,
+                "mood": mood,
             },
+            token=token,
         )
 
     async def list_treeholes(
@@ -69,11 +73,12 @@ class TreeholeService:
 
         return sliced
 
-    async def create_ai_reply(self, treehole_id: UUID, content: str):
+    async def create_ai_reply(self, treehole_id: UUID, content: str, token: str = None):
         return await self.sb.insert_async(
             "treehole_ai_replies",
             {
                 "treehole_id": str(treehole_id),
                 "content": content,
             },
+            token=token,
         )

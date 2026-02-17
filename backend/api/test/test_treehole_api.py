@@ -87,8 +87,8 @@ class _StubTreeholeService:
         self.create_return = [{"id": "1"}]
         self.list_return = [{"id": "1"}]
 
-    async def create_treehole(self, author_id, content, is_anonymous):
-        self.create_calls.append((author_id, content, is_anonymous))
+    async def create_treehole(self, author_id, content, is_anonymous, mood="平常"):
+        self.create_calls.append((author_id, content, is_anonymous, mood))
         return self.create_return
 
     async def list_treeholes(self, limit=20, offset=0, include_ai=False):
@@ -120,6 +120,8 @@ class TreeholeApiTests(unittest.TestCase):
         body = resp.json()
         self.assertEqual(body["code"], 200)
         self.assertEqual(len(self.stub.create_calls), 1)
+        _, _, _, mood = self.stub.create_calls[0]
+        self.assertEqual(mood, "平常")
 
     def test_list_treeholes_stream(self):
         resp = self.client.get("/api/v1/treehole/stream?limit=10&offset=0&include_ai=true")

@@ -23,6 +23,7 @@ class CommentService:
         post_id: UUID,
         author_id: UUID,
         content: str,
+        token: str = None,
     ):
         """
         创建评论
@@ -34,6 +35,7 @@ class CommentService:
                 "author_id": str(author_id),
                 "content": content,
             },
+            token=token,
         )
 
     # =========================
@@ -43,6 +45,7 @@ class CommentService:
     async def list_comments(
         self,
         post_id: UUID,
+        token: str = None,
     ) -> List[dict]:
         """
         获取某个 post 的全部评论（按时间升序）
@@ -51,6 +54,7 @@ class CommentService:
             "comments",
             filters={"post_id": str(post_id)},
             order_by="created_at",
+            token=token,
         )
 
     # =========================
@@ -61,6 +65,7 @@ class CommentService:
         self,
         comment_id: UUID,
         author_id: UUID,
+        token: str = None,
     ) -> None:
         """
         仅允许作者删除自己的评论
@@ -69,6 +74,7 @@ class CommentService:
             "comments",
             filters={"id": str(comment_id)},
             single=True,
+            token=token,
         )
 
         if comment["author_id"] != str(author_id):
@@ -76,4 +82,5 @@ class CommentService:
         await self.sb.delete_async(
             "comments",
             {"id": str(comment_id)},
+            token=token,
         )

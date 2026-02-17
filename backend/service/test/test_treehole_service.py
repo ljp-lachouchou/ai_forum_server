@@ -42,8 +42,8 @@ class _StubSupabaseClient:
         self.select_return = []
         self.mutil_return = []
 
-    async def insert_async(self, table, data):
-        self.insert_calls.append((table, data))
+    async def insert_async(self, table, data, token=None):
+        self.insert_calls.append((table, data, token))
         return [{"id": str(uuid4())}]
 
     async def select_async(self, table, filters=None, single=False, order_by=None, desc=False):
@@ -63,11 +63,13 @@ class TreeholeServiceTests(unittest.IsolatedAsyncioTestCase):
 
         await service.create_treehole(author_id, "hello", True)
 
-        table, data = sb.insert_calls[0]
+        table, data, token = sb.insert_calls[0]
         self.assertEqual(table, "treeholes")
         self.assertEqual(data["author_id"], str(author_id))
         self.assertEqual(data["content"], "hello")
         self.assertTrue(data["is_anonymous"])
+        self.assertEqual(data["mood"], "平常")
+        self.assertIsNone(token)
 
     async def test_list_treeholes_slices(self):
         sb = _StubSupabaseClient()

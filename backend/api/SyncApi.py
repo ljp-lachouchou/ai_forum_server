@@ -6,7 +6,6 @@ from backend.api.ApiResponse import ApiResponse as AR
 from backend.api.services import get_sync_service
 from backend.entity.schemas import (
     SyncIdsRequest,
-    SyncIdsWithUserRequest,
     SyncIdsWithOptionalUserRequest,
 )
 from backend.service.SyncService import SyncService
@@ -77,11 +76,11 @@ async def sync_profiles(
 
 @sync_router.post("/notifications", response_model=AR)
 async def sync_notifications(
-    payload: SyncIdsWithUserRequest,
+    payload: SyncIdsWithOptionalUserRequest,
     service: SyncService = Depends(get_sync_service),
 ):
     try:
-        data = await service.get_notifications(payload.user_id, payload.ids)
+        data = await service.get_notifications(payload.ids, payload.user_id)
         return AR.success(data)
     except Exception as e:
         return AR.error(msg=str(e))

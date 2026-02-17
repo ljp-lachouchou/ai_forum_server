@@ -21,6 +21,7 @@ class BookmarkService:
         self,
         user_id: UUID,
         post_id: UUID,
+        token: str = None,
     ):
         """
         添加收藏
@@ -32,6 +33,7 @@ class BookmarkService:
                 "user_id": str(user_id),
                 "post_id": str(post_id),
             },
+            token=token,
         )
 
     # =========================
@@ -42,6 +44,7 @@ class BookmarkService:
         self,
         user_id: UUID,
         post_id: UUID,
+        token: str = None,
     ) -> None:
         """
         取消收藏
@@ -52,6 +55,7 @@ class BookmarkService:
                 "user_id": str(user_id),
                 "post_id": str(post_id),
             },
+            token=token,
         )
 
     # =========================
@@ -62,6 +66,7 @@ class BookmarkService:
         self,
         user_id: UUID,
         post_id: UUID,
+        token: str = None,
     ) -> bool:
         """
         是否已收藏
@@ -72,6 +77,7 @@ class BookmarkService:
                 "user_id": str(user_id),
                 "post_id": str(post_id),
             },
+            token=token,
         )
         return len(data) > 0
 
@@ -82,6 +88,7 @@ class BookmarkService:
     async def list_user_bookmarks(
         self,
         user_id: UUID,
+        token: str = None,
     ) -> List[dict]:
         """
         获取用户收藏的所有 post
@@ -89,4 +96,5 @@ class BookmarkService:
         return await self.sb.select_async(
             "bookmarks",
             filters={"user_id": str(user_id)},
+            token=token,
         )

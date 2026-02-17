@@ -23,6 +23,7 @@ from backend.api.NotificationApi import notification_router
 from backend.api.SyncApi import sync_router
 from backend.api.FollowApi import follow_router
 from backend.api.ReportApi import report_router
+from backend.api.StorageApi import storage_router
 from backend.service.ChangeLogNotifier import ChangeLogNotifier
 from backend.Sql.FCMClient import FCMClient
 from backend.Sql.SClient import SupabaseClient
@@ -91,7 +92,8 @@ app.include_router(notification_router)
 app.include_router(sync_router)
 app.include_router(follow_router)
 app.include_router(report_router)
+app.include_router(storage_router)
 if __name__ == "__main__":
     # 启动命令：python main.py
     # 运行后访问 http://127.0.0.1:8000/docs 查看 Swagger 文档
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=9000)

@@ -13,7 +13,7 @@ class AIPostReviewService:
         self.sb = sb
 
     async def create_review(self, post_id: UUID, result: str, reason: Optional[str] = None):
-        return await self.sb.insert_async(
+        return await self.sb.insert_service_async(
             "ai_post_reviews",
             {
                 "post_id": str(post_id),

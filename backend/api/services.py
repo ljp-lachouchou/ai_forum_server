@@ -19,6 +19,7 @@ from backend.service.FollowService import FollowService
 from backend.service.AIPostReviewService import AIPostReviewService
 from backend.service.NotificationService import NotificationService
 from backend.service.ReportService import ReportService
+from backend.service.StorageService import StorageService
 from backend.service.TreeholeService import TreeholeService
 from backend.service.SyncService import SyncService
 from backend.service.LLMService import DeepSeekLLMService
@@ -186,3 +187,8 @@ def get_follow_service():
 @lru_cache(maxsize=1)
 def get_ai_post_review_service():
     return AIPostReviewService(SupabaseClient())
+
+
+@lru_cache(maxsize=1)
+def get_storage_service():
+    return StorageService(SupabaseClient())
