@@ -19,23 +19,22 @@ auth_router = APIRouter(prefix="/api/v1", tags=["auth"])
 @auth_router.post("/login", response_model=AR[LoginData])
 async def login(payload: LoginRequest,
                 auth_service: AuthService = Depends(get_auth_service),
-                profile_service: ProfileService = Depends(get_profile_service),
                 redis_client: RedisCacheClient = Depends(get_redis_client)):
     auth_service.check_pwd(payload.password)
     try:
-        token = await auth_service.login(payload.email, payload.password)
+        login_data = await auth_service.login(payload.email, payload.password)
     except AuthApiError as ae:
         return AR.controllableError(msg=f"邮箱未认证 {ae}")
     except Exception as e:
         return AR.error(msg=f"登录失败,系统错误 {e}")
-    profile_service.set_auth(token)
-    user = await auth_service.get_current_user(token)
+    token = login_data["access_token"]
+    user_id = login_data["user_id"]
     result_data = LoginData(
         access_token=token,
         email=payload.email,
-        user_id=user.user.id
+        user_id=user_id
     )
-    if not await redis_client.set_token_with_single_login(token, user.user.id):
+    if not await redis_client.set_token_with_single_login(token, user_id):
         return AR.cacheError()
     return AR.success(data=result_data)
 

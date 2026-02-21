@@ -78,9 +78,24 @@ def _stub_get_comment_summary_service():
     raise RuntimeError("dependency override not set")
 
 
+def _stub_get_redis_client():
+    raise RuntimeError("dependency override not set")
+
+
 _services_module.get_comment_service = _stub_get_comment_service
 _services_module.get_comment_summary_service = _stub_get_comment_summary_service
+_services_module.get_redis_client = _stub_get_redis_client
 sys.modules.setdefault("backend.api.services", _services_module)
+
+_redis_module = types.ModuleType("backend.Sql.cache.RedisCacheClient")
+
+
+class _RedisClientType:
+    pass
+
+
+_redis_module.RedisCacheClient = _RedisClientType
+sys.modules.setdefault("backend.Sql.cache.RedisCacheClient", _redis_module)
 
 import backend.api.CommentApi as comment_api
 
@@ -90,20 +105,20 @@ class _StubCommentService:
         self.create_calls = []
         self.list_calls = []
         self.delete_calls = []
-        self.create_return = [{"id": "1"}]
+        self.create_return = {"id": "1"}
         self.list_return = [{"id": "1"}]
         self.delete_should_raise = None
 
-    async def create_comment(self, post_id, author_id, content):
-        self.create_calls.append((post_id, author_id, content))
+    async def create_comment(self, post_id, author_id, content, token=None):
+        self.create_calls.append((post_id, author_id, content, token))
         return self.create_return
 
     async def list_comments(self, post_id):
         self.list_calls.append(post_id)
         return self.list_return
 
-    async def delete_comment(self, comment_id, author_id):
-        self.delete_calls.append((comment_id, author_id))
+    async def delete_comment(self, comment_id, author_id, token=None):
+        self.delete_calls.append((comment_id, author_id, token))
         if self.delete_should_raise:
             raise self.delete_should_raise
 
@@ -123,10 +138,14 @@ class CommentApiTests(unittest.TestCase):
         self.app = FastAPI()
         self.stub = _StubCommentService()
         self.summary_stub = _StubCommentSummaryService()
+        self.current_user_id = str(uuid4())
         self.app.include_router(comment_api.comment_router)
         self.app.dependency_overrides[comment_api.get_comment_service] = lambda: self.stub
         self.app.dependency_overrides[comment_api.get_comment_summary_service] = (
             lambda: self.summary_stub
+        )
+        self.app.dependency_overrides[comment_api.require_auth] = (
+            lambda: comment_api.AuthContext(user_id=self.current_user_id, token="test-token")
         )
         self.client = TestClient(self.app)
 
@@ -135,7 +154,7 @@ class CommentApiTests(unittest.TestCase):
 
     def test_create_comment(self):
         post_id = uuid4()
-        author_id = uuid4()
+        author_id = self.current_user_id
         payload = {"author_id": str(author_id), "content": "hello"}
 
         resp = self.client.post(f"/api/v1/posts/{post_id}/comments", json=payload)
@@ -143,11 +162,13 @@ class CommentApiTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         body = resp.json()
         self.assertEqual(body["code"], 200)
+        self.assertEqual(body["data"], self.stub.create_return)
         self.assertEqual(len(self.stub.create_calls), 1)
-        called_post_id, called_author_id, called_content = self.stub.create_calls[0]
+        called_post_id, called_author_id, called_content, called_token = self.stub.create_calls[0]
         self.assertEqual(str(called_post_id), str(post_id))
         self.assertEqual(str(called_author_id), str(author_id))
         self.assertEqual(called_content, "hello")
+        self.assertEqual(called_token, "test-token")
 
     def test_list_comments(self):
         post_id = uuid4()
@@ -162,7 +183,7 @@ class CommentApiTests(unittest.TestCase):
 
     def test_delete_comment(self):
         comment_id = uuid4()
-        author_id = uuid4()
+        author_id = self.current_user_id
         payload = {"author_id": str(author_id)}
 
         resp = self.client.request(
@@ -175,13 +196,14 @@ class CommentApiTests(unittest.TestCase):
         body = resp.json()
         self.assertEqual(body["code"], 200)
         self.assertEqual(len(self.stub.delete_calls), 1)
-        called_comment_id, called_author_id = self.stub.delete_calls[0]
+        called_comment_id, called_author_id, called_token = self.stub.delete_calls[0]
         self.assertEqual(str(called_comment_id), str(comment_id))
         self.assertEqual(str(called_author_id), str(author_id))
+        self.assertEqual(called_token, "test-token")
 
     def test_delete_comment_rejects_permission(self):
         comment_id = uuid4()
-        author_id = uuid4()
+        author_id = self.current_user_id
         self.stub.delete_should_raise = PermissionError("no")
 
         resp = self.client.request(

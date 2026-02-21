@@ -16,6 +16,7 @@ class SupabaseClient:
     _url: Optional[str] = None
     _key: Optional[str] = None
     _anon_key: Optional[str] = None
+    _service_role_key: Optional[str] = None
 
     def __new__(cls, *args, **kwargs):
         """确保全局只有一个 SupabaseClient 对象"""
@@ -36,6 +37,7 @@ class SupabaseClient:
             final_url = url or os.environ.get("SUPABASE_URL")
             final_key = key or os.environ.get("SUPABASE_KEY")
             final_anon_key = os.environ.get("SUPABASE_ANON_KEY")
+            final_service_role_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
             if not final_url or not final_key:
                 raise RuntimeError("Supabase URL or KEY not provided")
@@ -44,6 +46,7 @@ class SupabaseClient:
             SupabaseClient._url = final_url
             SupabaseClient._key = final_key
             SupabaseClient._anon_key = final_anon_key
+            SupabaseClient._service_role_key = final_service_role_key
             # 这里的 _client 是类变量，确保全局唯一
             SupabaseClient._client = create_client(final_url, final_key)
 
@@ -51,6 +54,17 @@ class SupabaseClient:
     def client(self):
         """获取原始 Supabase 客户端的快捷方式"""
         return self._client
+
+    def get_anon_client(self):
+        """
+        Use anon/publishable key client for Auth endpoints.
+        Falls back to SUPABASE_KEY when anon key is absent.
+        """
+        if not self._url or not self._key:
+            raise RuntimeError("Supabase URL or KEY not provided")
+        from supabase import create_client
+        key = self._anon_key or self._key
+        return create_client(self._url, key)
 
     def get_auth_client(self, token: Optional[str] = None):
         """
@@ -84,16 +98,17 @@ class SupabaseClient:
     def get_service_role_client(self):
         if not self._url or not self._key:
             raise RuntimeError("Supabase URL or KEY not provided")
+        service_key = self._service_role_key or self._key
         from supabase import create_client
-        client = create_client(self._url, self._key)
-        pg = client.postgrest.auth(self._key)
+        client = create_client(self._url, service_key)
+        pg = client.postgrest.auth(service_key)
         if pg is not None:
             try:
                 target = getattr(pg, "session", None) or getattr(pg, "client", None)
                 headers = getattr(target, "headers", None) if target is not None else None
                 if headers is not None:
-                    headers["apikey"] = self._key
-                    headers["Authorization"] = f"Bearer {self._key}"
+                    headers["apikey"] = service_key
+                    headers["Authorization"] = f"Bearer {service_key}"
             except Exception:
                 pass
             try:

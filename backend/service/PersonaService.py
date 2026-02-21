@@ -1,6 +1,6 @@
 import json
 from uuid import UUID
-from typing import List
+from typing import List, Dict, Any, Tuple
 import re
 from backend.Sql.SClient import SupabaseClient
 from backend.service.LLMService import LLMService
@@ -11,17 +11,30 @@ class PersonaService:
         self.client = supabase_client
         self.llm = llm_service
 
-    async def _get_data_and_stats(self, u_id: UUID):
+    @staticmethod
+    def _default_persona_data(u_id: UUID) -> Dict[str, Any]:
+        return {
+            "id": str(u_id),
+            "stats": {},
+            "behavioral_tags": [],
+            "bio_summary": "",
+        }
+
+    async def _get_data_and_stats(self, u_id: UUID) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """获得这条数据"""
-        data = await self.client.select_async("user_personas", {
+        rows = await self.client.select_async("user_personas", {
             "id": str(u_id)
-        },True)
-        print(data)
-        stats = data['stats']
-        print(stats)
+        })
+
+        if isinstance(rows, list) and rows:
+            data = rows[0]
+        elif isinstance(rows, dict):
+            data = rows
+        else:
+            data = self._default_persona_data(u_id)
+
+        stats = data.get("stats") or {}
         return data, stats
-
-
 
     def _build_tags_context(self, stats: dict):
         return f"""
@@ -69,5 +82,5 @@ class PersonaService:
             return await self.client.update_async("user_personas", {
                 "behavioral_tags": tags_array,
                 "bio_summary": f"该用户近期侧重于 {', '.join(tags_array)} 的学习。"  # 顺便更新摘要
-            }, {"id": u_id})
+            }, {"id": str(u_id)})
         return None

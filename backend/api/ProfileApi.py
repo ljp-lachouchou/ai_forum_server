@@ -18,7 +18,7 @@ async def get_profile(pamaras: GetProfileRequest = Depends(),
     try:
         if not is_same_user(current_user, pamaras.id):
             return AR.error(code=403, msg="not allowed to access another user's profile")
-        data = await profile_service.get_profile(pamaras.id)
+        data = await profile_service.get_profile(pamaras.id, token=current_user.token)
     except ValidationError as ve:
         return AR.controllableError(f"获取个人信息错误： {ve}")
     except Exception as e:
@@ -40,7 +40,7 @@ async def update_profile(payload:ProfileUpdate,
         update_data.pop("id", None)
         if not update_data:
             return AR.success(msg="no fields to update")
-        data = await profile_service.update_profile(payload.id, update_data)
+        data = await profile_service.update_profile(payload.id, update_data, token=current_user.token)
     except Exception as e:
         return AR.error(msg=f"[系统错误] 更新个人信息: {e}")
     return AR.success(data)

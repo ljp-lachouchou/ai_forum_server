@@ -24,6 +24,7 @@ from backend.api.SyncApi import sync_router
 from backend.api.FollowApi import follow_router
 from backend.api.ReportApi import report_router
 from backend.api.StorageApi import storage_router
+from backend.api.services import warmup_ai_models
 from backend.service.ChangeLogNotifier import ChangeLogNotifier
 from backend.Sql.FCMClient import FCMClient
 from backend.Sql.SClient import SupabaseClient
@@ -42,6 +43,13 @@ async def lifespan(app: FastAPI):
             format="%(asctime)s %(levelname)s %(name)s %(message)s",
         )
     enabled = os.environ.get("CHANGE_LOG_NOTIFIER_ENABLED", "true").lower() in ("1", "true", "yes")
+    ai_warmup_enabled = os.environ.get("AI_WARMUP_ENABLED", "true").lower() in ("1", "true", "yes")
+
+    if ai_warmup_enabled:
+        await warmup_ai_models()
+    else:
+        _logger.info("ai warmup disabled")
+
     notifier = None
     task = None
     if enabled:

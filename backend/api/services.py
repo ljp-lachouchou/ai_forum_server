@@ -1,4 +1,7 @@
 import os
+import asyncio
+import logging
+import time
 from functools import lru_cache
 from pathlib import Path
 
@@ -33,6 +36,7 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter
 from milvus_model.hybrid import BGEM3EmbeddingFunction
 
 _MODEL_ENV_KEY = "BGE_MODEL_PATH"
+_logger = logging.getLogger(__name__)
 
 
 def _project_root() -> Path:
@@ -63,6 +67,25 @@ def _get_bge_model():
         use_fp16=False,
         device="cpu",
     )
+
+
+async def warmup_ai_models() -> None:
+    """
+    Preload and warmup heavy AI components during app startup.
+    This avoids paying first-request latency on /publish and RAG endpoints.
+    """
+    start = time.perf_counter()
+    try:
+        model = _get_bge_model()
+        # Trigger tokenizer/model lazy init by running one tiny inference.
+        await asyncio.to_thread(model, ["warmup"])
+        # Ensure cached singleton services are built once.
+        get_rag_manager()
+        get_search_service()
+        get_rag_summary_service()
+        _logger.info("AI warmup completed in %.2fs", time.perf_counter() - start)
+    except Exception:
+        _logger.exception("AI warmup failed")
 
 
 @lru_cache(maxsize=1)

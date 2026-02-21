@@ -41,8 +41,8 @@ class _StubSupabaseClient:
         self.delete_calls = []
         self.select_return = None
 
-    async def insert_async(self, table, data):
-        self.insert_calls.append((table, data))
+    async def insert_async(self, table, data, token=None):
+        self.insert_calls.append((table, data, token))
         return [{"id": str(uuid4())}]
 
     async def select_async(
@@ -52,12 +52,13 @@ class _StubSupabaseClient:
         single=False,
         order_by=None,
         desc=False,
+        token=None,
     ):
-        self.select_calls.append((table, filters, single, order_by, desc))
+        self.select_calls.append((table, filters, single, order_by, desc, token))
         return self.select_return
 
-    async def delete_async(self, table, filters):
-        self.delete_calls.append((table, filters))
+    async def delete_async(self, table, filters, token=None):
+        self.delete_calls.append((table, filters, token))
 
 
 class CommentServiceTests(unittest.IsolatedAsyncioTestCase):
@@ -70,12 +71,14 @@ class CommentServiceTests(unittest.IsolatedAsyncioTestCase):
         result = await service.create_comment(post_id, author_id, "hello")
 
         self.assertTrue(result)
+        self.assertIsInstance(result, dict)
         self.assertEqual(len(sb.insert_calls), 1)
-        table, data = sb.insert_calls[0]
+        table, data, token = sb.insert_calls[0]
         self.assertEqual(table, "comments")
         self.assertEqual(data["post_id"], str(post_id))
         self.assertEqual(data["author_id"], str(author_id))
         self.assertEqual(data["content"], "hello")
+        self.assertIsNone(token)
 
     async def test_list_comments_orders_by_created_at(self):
         sb = _StubSupabaseClient()
@@ -87,12 +90,13 @@ class CommentServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result, sb.select_return)
         self.assertEqual(len(sb.select_calls), 1)
-        table, filters, single, order_by, desc = sb.select_calls[0]
+        table, filters, single, order_by, desc, token = sb.select_calls[0]
         self.assertEqual(table, "comments")
         self.assertEqual(filters, {"post_id": str(post_id)})
         self.assertFalse(single)
         self.assertEqual(order_by, "created_at")
         self.assertFalse(desc)
+        self.assertIsNone(token)
 
     async def test_delete_comment_rejects_other_author(self):
         sb = _StubSupabaseClient()
@@ -116,9 +120,10 @@ class CommentServiceTests(unittest.IsolatedAsyncioTestCase):
         await service.delete_comment(comment_id, author_id)
 
         self.assertEqual(len(sb.delete_calls), 1)
-        table, filters = sb.delete_calls[0]
+        table, filters, token = sb.delete_calls[0]
         self.assertEqual(table, "comments")
         self.assertEqual(filters, {"id": str(comment_id)})
+        self.assertIsNone(token)
 
 
 if __name__ == "__main__":

@@ -28,7 +28,7 @@ class CommentService:
         """
         创建评论
         """
-        return await self.sb.insert_async(
+        rows = await self.sb.insert_async(
             "comments",
             {
                 "post_id": str(post_id),
@@ -37,6 +37,9 @@ class CommentService:
             },
             token=token,
         )
+        if isinstance(rows, list):
+            return rows[0] if rows else None
+        return rows
 
     # =========================
     # 查询某个 post 下的评论

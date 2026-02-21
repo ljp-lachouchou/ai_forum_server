@@ -9,18 +9,21 @@ class SyncService:
         self.sb = sb
 
     async def get_changelog(self, since: int, limit: int = 500) -> Dict:
+        query_since = max(int(since or 0), 0)
+        query_limit = max(int(limit or 500), 1)
+        client = self.sb.get_service_role_client()
         changes = (
-            self.sb._client
+            client
             .table("change_log")
             .select("entity_type, entity_id, change_type, version, changed_at")
-            .gt("version", since)
+            .gt("version", query_since)
             .order("version", desc=False)
-            .limit(limit)
+            .limit(query_limit)
             .execute()
         ).data or []
 
         version_row = (
-            self.sb._client
+            client
             .table("change_version")
             .select("version")
             .eq("id", 1)
@@ -28,7 +31,7 @@ class SyncService:
             .execute()
         ).data or {}
 
-        latest_version = version_row.get("version", since)
+        latest_version = version_row.get("version", query_since)
         return {"latest_version": latest_version, "changes": changes}
 
     async def get_words(self, ids: List[UUID]) -> List[dict]:
