@@ -38,6 +38,8 @@ class ProfileService:
         """更新用户信息 (受 RLS: auth.uid() = id 保护)"""
         client = self.sb.get_auth_client(token)
         res = client.table("profiles").update(data).eq("id", str(user_id)).execute()
+        if isinstance(res.data, list):
+            return res.data[0] if res.data else None
         return res.data
 
     @AsyncWrapper.to_async(AsyncWrapper._upload_sem)
