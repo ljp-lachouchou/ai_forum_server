@@ -22,7 +22,7 @@ class TreeholeService:
         mood: str = "平常",
         token: str = None,
     ):
-        return await self.sb.insert_async(
+        rows = await self.sb.insert_async(
             "treeholes",
             {
                 "author_id": str(author_id),
@@ -32,6 +32,9 @@ class TreeholeService:
             },
             token=token,
         )
+        if isinstance(rows, list):
+            return rows[0] if rows else None
+        return rows
 
     async def list_treeholes(
         self,

@@ -31,6 +31,20 @@ sys.modules.setdefault("supabase", _supabase_module)
 sys.modules.setdefault("supabase._sync", _sync_module)
 sys.modules.setdefault("supabase._sync.client", _client_module)
 
+_upstash_module = types.ModuleType("upstash_redis")
+_upstash_async_module = types.ModuleType("upstash_redis.asyncio")
+
+
+class _DummyRedis:
+    def __init__(self, *args, **kwargs):
+        pass
+
+
+_upstash_module.Redis = _DummyRedis
+_upstash_async_module.Redis = _DummyRedis
+sys.modules.setdefault("upstash_redis", _upstash_module)
+sys.modules.setdefault("upstash_redis.asyncio", _upstash_async_module)
+
 _email_validator_module = types.ModuleType("email_validator")
 
 
@@ -74,7 +88,12 @@ def _stub_get_treehole_service():
     raise RuntimeError("dependency override not set")
 
 
+def _stub_get_redis_client():
+    raise RuntimeError("dependency override not set")
+
+
 _services_module.get_treehole_service = _stub_get_treehole_service
+_services_module.get_redis_client = _stub_get_redis_client
 sys.modules.setdefault("backend.api.services", _services_module)
 
 import backend.api.TreeholeApi as treehole_api
@@ -84,10 +103,10 @@ class _StubTreeholeService:
     def __init__(self):
         self.create_calls = []
         self.list_calls = []
-        self.create_return = [{"id": "1"}]
+        self.create_return = {"id": "1"}
         self.list_return = [{"id": "1"}]
 
-    async def create_treehole(self, author_id, content, is_anonymous, mood="平常"):
+    async def create_treehole(self, author_id, content, is_anonymous, mood="default", token=None):
         self.create_calls.append((author_id, content, is_anonymous, mood))
         return self.create_return
 
@@ -100,8 +119,13 @@ class TreeholeApiTests(unittest.TestCase):
     def setUp(self):
         self.app = FastAPI()
         self.stub = _StubTreeholeService()
+        self.user_id = str(uuid4())
         self.app.include_router(treehole_api.treehole_router)
         self.app.dependency_overrides[treehole_api.get_treehole_service] = lambda: self.stub
+        self.app.dependency_overrides[treehole_api.require_auth] = lambda: treehole_api.AuthContext(
+            user_id=self.user_id,
+            token="test-token",
+        )
         self.client = TestClient(self.app)
 
     def tearDown(self):
@@ -109,9 +133,10 @@ class TreeholeApiTests(unittest.TestCase):
 
     def test_create_treehole(self):
         payload = {
-            "author_id": str(uuid4()),
+            "author_id": self.user_id,
             "content": "hello",
             "is_anonymous": True,
+            "mood": "calm",
         }
 
         resp = self.client.post("/api/v1/treehole", json=payload)
@@ -119,9 +144,10 @@ class TreeholeApiTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         body = resp.json()
         self.assertEqual(body["code"], 200)
+        self.assertEqual(body["data"], self.stub.create_return)
         self.assertEqual(len(self.stub.create_calls), 1)
         _, _, _, mood = self.stub.create_calls[0]
-        self.assertEqual(mood, "平常")
+        self.assertEqual(mood, "calm")
 
     def test_list_treeholes_stream(self):
         resp = self.client.get("/api/v1/treehole/stream?limit=10&offset=0&include_ai=true")

@@ -61,7 +61,7 @@ class TreeholeServiceTests(unittest.IsolatedAsyncioTestCase):
         service = TreeholeService(sb)
         author_id = uuid4()
 
-        await service.create_treehole(author_id, "hello", True)
+        result = await service.create_treehole(author_id, "hello", True)
 
         table, data, token = sb.insert_calls[0]
         self.assertEqual(table, "treeholes")
@@ -70,6 +70,8 @@ class TreeholeServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(data["is_anonymous"])
         self.assertEqual(data["mood"], "平常")
         self.assertIsNone(token)
+        self.assertIsInstance(result, dict)
+        self.assertIn("id", result)
 
     async def test_list_treeholes_slices(self):
         sb = _StubSupabaseClient()
